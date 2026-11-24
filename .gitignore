@@ -14,5 +14,6 @@ keystore/
 
 # local artifacts
 release/*.apk
+design/release-0.3.0.html
 shots/
 .ptc-repl-*.js
