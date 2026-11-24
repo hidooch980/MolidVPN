@@ -1,10 +1,11 @@
 {
-  "versionCode": 33,
-  "versionName": "0.4.2",
-  "url": "https://github.com/hidooch980/MolidVPN/releases/download/v0.4.2/MolidVPN-0.4.2.apk",
+  "versionCode": 34,
+  "versionName": "0.4.3",
+  "url": "https://github.com/hidooch980/MolidVPN/releases/download/v0.4.3/MolidVPN-0.4.3.apk",
   "mirrors": [
-    "https://cdn.jsdelivr.net/gh/hidooch980/MolidVPN@main/dist/MolidVPN-0.4.2.apk",
-    "https://fastly.jsdelivr.net/gh/hidooch980/MolidVPN@main/dist/MolidVPN-0.4.2.apk"
+    "https://raw.githack.com/hidooch980/MolidVPN/main/dist/MolidVPN-0.4.3.apk",
+    "https://cdn.statically.io/gh/hidooch980/MolidVPN/main/dist/MolidVPN-0.4.3.apk",
+    "https://cdn.jsdelivr.net/gh/hidooch980/MolidVPN@main/dist/MolidVPN-0.4.3.apk"
   ],
-  "sha256": "8bd254ef471682830f2a7d917ec19b17022412012816c3a4ca6d0fc2eeab2904"
+  "sha256": "d4b47fa5b4720cdd7499578d5284068f417c0334b8fe8cd3941995fa16b2f878"
 }

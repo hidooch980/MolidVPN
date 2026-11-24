@@ -27,8 +27,9 @@ import java.security.MessageDigest
  */
 object Updater {
     private val MANIFESTS = listOf(
+        "https://raw.githack.com/hidooch980/MolidVPN/main/release/update.json",
+        "https://cdn.statically.io/gh/hidooch980/MolidVPN/main/release/update.json",
         "https://cdn.jsdelivr.net/gh/hidooch980/MolidVPN@main/release/update.json",
-        "https://fastly.jsdelivr.net/gh/hidooch980/MolidVPN@main/release/update.json",
         "https://raw.githubusercontent.com/hidooch980/MolidVPN/main/release/update.json",
     )
 
