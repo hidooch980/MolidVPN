@@ -1,0 +1,14 @@
+{
+  "_راهنما": "ترتیب بخش‌های صفحهٔ اصلی. ویرایش کن و بعد .\\build.ps1 را اجرا کن.",
+  "_بخش‌ها": "modes=پیل‌ها، orb=مدار، state=وضعیت و سرور، status_card=کشوی وضعیت، exits_card=کشوی مکان خروجی، metrics=سه متریک، hint=خط پایین",
+  "_فیلدها": "visible=false پنهانش می‌کند، gap=فاصلهٔ بعد از بخش (dp)، scale=اندازهٔ مدار بین ۰٫۴ تا ۱",
+  "sections": [
+    { "id": "modes", "gap": 2 },
+    { "id": "orb", "gap": 10, "scale": 0.77 },
+    { "id": "state", "gap": 9 },
+    { "id": "status_card", "gap": 8 },
+    { "id": "exits_card", "gap": 9 },
+    { "id": "metrics", "gap": 12 },
+    { "id": "hint", "gap": 82 }
+  ]
+}

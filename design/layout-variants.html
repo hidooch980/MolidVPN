@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font-sans); color: var(--foreground); }
+  .app { max-width: 700px; margin: 0 auto; }
+  .grid { display: flex; gap: 12px; justify-content: center; align-items: flex-start; flex-wrap: wrap; }
+  .cell { flex: 0 0 222px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .tag { font-size: 11.5px; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted-foreground); text-align: center; }
+  .tag.now { color: var(--accent-surface-foreground); border-color: var(--accent); background: var(--accent-surface); }
+  .shot { width: 100%; border-radius: 18px; border: 1px solid var(--border); display: block; }
+  .code { font-family: var(--font-mono); font-size: 10px; color: var(--muted-foreground); direction: ltr; text-align: left; background: var(--code-background); border-radius: 8px; padding: 6px 8px; width: 100%; line-height: 1.6; }
+  .foot { font-size: 12.5px; color: var(--muted-foreground); line-height: 1.9; margin-top: 16px; text-align: center; }
+  .foot code { font-family: var(--font-mono); font-size: 11.5px; color: var(--foreground); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="grid">
+    <div class="cell">
+      <span class="tag now">پیش‌فرض</span>
+      <img class="shot" src="C:/Users/MOLLAZEHI/Desktop/New VPN/MolidVPN/shots/134-check.png" alt="">
+      <div class="code">orb .scale 0.77
+metrics.bottom</div>
+    </div>
+    <div class="cell">
+      <span class="tag">متریک‌ها بالا، مدار کوچک</span>
+      <img class="shot" src="C:/Users/MOLLAZEHI/Desktop/New VPN/MolidVPN/shots/132-reordered.png" alt="">
+      <div class="code">orb .scale 0.66
+[id=metrics] ↑ up</div>
+    </div>
+    <div class="cell">
+      <span class="tag">پیل‌ها و خط پایین پنهان</span>
+      <img class="shot" src="C:/Users/MOLLAZEHI/Desktop/New VPN/MolidVPN/shots/135-variant-c.png" alt="">
+      <div class="code">modes .visible false
+hint .visible false
+orb .scale 0.90</div>
+    </div>
+  </div>
+  <p class="foot">هر سه، فقط با ویرایش <code>home_layout.json</code> و یک <code>.\build.ps1</code> ساخته شدند؛ هیچ خطی از Kotlin عوض نشد.</p>
+</div>
+</body>
+</html>

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font-sans); color: var(--foreground); }
+  .wrap { display: flex; gap: 18px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .tag { font-size: 12px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted-foreground); }
+  .tag.now { color: var(--accent-foreground); border-color: var(--accent); background: var(--accent-surface); }
+  .shot { width: min(320px, 40vw); border-radius: 22px; border: 1px solid var(--border); display: block; }
+  .note { font-size: 12.5px; color: var(--muted-foreground); line-height: 1.9; margin: 18px auto 0; max-width: 640px; }
+  .note b { color: var(--foreground); font-weight: 600; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="col">
+      <span class="tag">قبل</span>
+      <img class="shot" src="C:/Users/MOLLAZEHI/Desktop/New VPN/MolidVPN/shots/108.png" alt="قبل">
+    </div>
+    <div class="col">
+      <span class="tag now">بعد</span>
+      <img class="shot" src="C:/Users/MOLLAZEHI/Desktop/New VPN/MolidVPN/shots/125-live.png" alt="بعد">
+    </div>
+  </div>
+  <p class="note">اتصال در هر دو تصویر واقعی است: دست‌دادن Noise با <b>wireguard-go</b> روی هاست، تایمر زنده و پینگ واقعی.
+  تفاوت‌ها: مدار کوچک‌تر و بدون بریدگی لبه، نردبان اندازهٔ متن یکدست، واحدها کنار عدد (<b>۲۷۴ ms</b> / <b>0.0 Mbps</b>) و کارت‌های کشویی جمع‌وجورتر.</p>
+</body>
+</html>

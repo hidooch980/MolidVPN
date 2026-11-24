@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>چیدمان صفحهٔ اصلی</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; max-width: 100%; overflow-x: hidden; }
+  body { font-family: var(--font-sans); color: var(--foreground); }
+  .app { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; max-width: 664px; margin: 0 auto; padding: 2px 4px 2px 0; }
+  .col { flex: 1 1 320px; min-width: 0; }
+  .side { flex: 0 0 250px; }
+  h2 { font-size: 13px; font-weight: 600; margin: 0 0 8px; }
+  .panel { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); padding: 12px; min-width: 0; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 9px; border: 1px solid var(--border); border-radius: 11px; margin-bottom: 7px; background: var(--background); }
+  .row.off { opacity: .45; }
+  .name { flex: 1 1 96px; min-width: 0; font-size: 12.5px; line-height: 1.5; }
+  .name small { color: var(--muted-foreground); font-size: 10.5px; }
+  button { font-family: inherit; font-size: 11.5px; border-radius: 8px; border: 1px solid var(--border); background: var(--secondary); color: var(--secondary-foreground); padding: 4px 8px; cursor: pointer; }
+  button:disabled { opacity: .35; cursor: default; }
+  button.on { background: var(--accent-surface); color: var(--accent-surface-foreground); border-color: var(--accent); }
+  .num { display: flex; align-items: center; gap: 4px; font-size: 10.5px; color: var(--muted-foreground); }
+  input[type=number] { width: 46px; font-family: inherit; font-size: 11.5px; padding: 3px 5px; border-radius: 7px; border: 1px solid var(--border); background: var(--background); color: var(--foreground); }
+  .wide { flex: 1 0 100%; display: flex; align-items: center; gap: 8px; font-size: 10.5px; color: var(--muted-foreground); }
+  input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
+  .phone { width: 100%; border: 1px solid var(--border); border-radius: 22px; padding: 9px 9px 52px; background: linear-gradient(180deg, #141126, #06070c 60%); position: relative; }
+  .blk { border-radius: 10px; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 10.5px; color: var(--muted-foreground); margin-bottom: var(--gap, 8px); background: rgba(255,255,255,.03); }
+  .blk.orb { aspect-ratio: 1; border-radius: 50%; width: 100%; border-color: var(--accent); background: radial-gradient(circle at 50% 42%, rgba(124,92,255,.35), transparent 72%); color: var(--foreground); }
+  .bar { position: absolute; bottom: 10px; right: 50%; transform: translateX(50%); width: 84%; height: 34px; border-radius: 17px; background: rgba(255,255,255,.07); display: flex; align-items: center; justify-content: space-around; font-size: 9.5px; color: var(--muted-foreground); }
+  pre { direction: ltr; text-align: left; max-height: 260px; margin: 8px 0 0; padding: 11px; border-radius: 11px; background: var(--code-background); color: var(--code-foreground); font-family: var(--font-mono); font-size: 11px; overflow: auto; }
+  .foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 9px; font-size: 11.5px; color: var(--muted-foreground); }
+  .ok { color: var(--success); }
+  code { font-family: var(--font-mono); font-size: 11px; color: var(--foreground); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="col">
+    <h2>ترتیب بخش‌ها</h2>
+    <div class="panel"><div id="list"></div></div>
+    <div class="foot">
+      <button id="copy">کپی JSON</button>
+      <span id="msg"></span>
+      <span>بعد <code>.\build.ps1</code></span>
+    </div>
+    <pre id="json"></pre>
+  </div>
+  <div class="side">
+    <h2>پیش‌نمایش</h2>
+    <div class="panel">
+      <div class="phone" id="phone"><div class="bar"><span>اتصال</span><span>مسیرها</span><span>تنظیمات</span></div></div>
+    </div>
+  </div>
+</div>
+<script>
+const META = {
+  modes:       { label: "پیل‌های وضعیت", h: 26 },
+  orb:         { label: "مدار اتصال", h: 0, scale: true },
+  state:       { label: "وضعیت + سرور", h: 54 },
+  status_card: { label: "کشوی وضعیت", h: 46 },
+  exits_card:  { label: "کشوی مکان خروجی", h: 46 },
+  metrics:     { label: "سه متریک", h: 62 },
+  hint:        { label: "خط پایین", h: 22 }
+};
+const DEFAULT = [
+  { id: "modes", gap: 2 },
+  { id: "orb", gap: 10, scale: 0.77 },
+  { id: "state", gap: 9 },
+  { id: "status_card", gap: 8 },
+  { id: "exits_card", gap: 9 },
+  { id: "metrics", gap: 12 },
+  { id: "hint", gap: 82 }
+];
+const items = DEFAULT.map(x => ({ ...x }));
+const list = document.getElementById("list");
+const phone = document.getElementById("phone");
+const json = document.getElementById("json");
+
+function render() {
+  list.textContent = "";
+  items.forEach((it, i) => {
+    const m = META[it.id];
+    const row = document.createElement("div");
+    row.className = "row" + (it.visible === false ? " off" : "");
+
+    const name = document.createElement("div");
+    name.className = "name";
+    name.innerHTML = m.label + " <small>" + it.id + "</small>";
+    row.appendChild(name);
+
+    const mk = (label, fn, disabled) => {
+      const b = document.createElement("button");
+      b.textContent = label;
+      b.disabled = !!disabled;
+      b.onclick = fn;
+      row.appendChild(b);
+    };
+    mk("↑", () => { [items[i - 1], items[i]] = [items[i], items[i - 1]]; render(); }, i === 0);
+    mk("↓", () => { [items[i + 1], items[i]] = [items[i], items[i + 1]]; render(); }, i === items.length - 1);
+
+    const num = document.createElement("label");
+    num.className = "num";
+    num.textContent = "فاصله";
+    const input = document.createElement("input");
+    input.type = "number"; input.min = 0; input.max = 240; input.step = 1;
+    input.value = it.gap ?? 8;
+    input.oninput = () => { it.gap = Math.max(0, Math.min(240, +input.value || 0)); paint(); };
+    num.appendChild(input);
+    row.appendChild(num);
+
+    const vis = document.createElement("button");
+    vis.textContent = it.visible === false ? "پنهان" : "نمایش";
+    vis.className = it.visible === false ? "" : "on";
+    vis.onclick = () => { it.visible = it.visible === false; render(); };
+    row.appendChild(vis);
+
+    if (m.scale) {
+      const wide = document.createElement("label");
+      wide.className = "wide";
+      wide.textContent = "اندازهٔ مدار";
+      const range = document.createElement("input");
+      range.type = "range"; range.min = 40; range.max = 100;
+      range.value = Math.round((it.scale ?? .77) * 100);
+      range.oninput = () => { it.scale = (+range.value) / 100; paint(); };
+      wide.appendChild(range);
+      row.appendChild(wide);
+    }
+    list.appendChild(row);
+  });
+  paint();
+}
+
+function paint() {
+  const bar = phone.querySelector(".bar");
+  phone.querySelectorAll(".blk").forEach(n => n.remove());
+  items.filter(it => it.visible !== false).forEach(it => {
+    const m = META[it.id];
+    const d = document.createElement("div");
+    d.className = "blk" + (it.id === "orb" ? " orb" : "");
+    d.style.setProperty("--gap", (it.gap ?? 8) + "px");
+    if (!m.scale) d.style.height = m.h + "px";
+    d.textContent = m.label;
+    phone.insertBefore(d, bar);
+  });
+
+  const out = { sections: items.map(it => {
+    const o = { id: it.id };
+    if (it.visible === false) o.visible = false;
+    o.gap = it.gap ?? 8;
+    if (it.id === "orb") o.scale = +(it.scale ?? .77).toFixed(2);
+    return o;
+  })};
+  json.textContent = JSON.stringify(out, null, 2);
+}
+
+document.getElementById("copy").onclick = async () => {
+  const msg = document.getElementById("msg");
+  try {
+    await navigator.clipboard.writeText(json.textContent);
+    msg.textContent = "کپی شد";
+    msg.className = "ok";
+  } catch (e) {
+    msg.textContent = "از کادر پایین دستی کپی کن";
+  }
+};
+
+render();
+</script>
+</body>
+</html>
