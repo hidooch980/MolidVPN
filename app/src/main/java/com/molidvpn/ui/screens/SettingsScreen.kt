@@ -52,6 +52,8 @@ fun SettingsScreen(
     onToast: (String) -> Unit,
     onEditConfig: () -> Unit,
     onSelfTest: () -> Unit,
+    onWarp: () -> Unit,
+    onOpenLink: (String) -> Unit,
 ) {
     val configSummary = remember(settings.wgConfig) {
         if (settings.wgConfig.isBlank()) "وارد نشده؛ بدون آن اتصال برقرار نمی‌شود"
@@ -106,6 +108,15 @@ fun SettingsScreen(
                 )
                 Hairline()
                 RowItem(
+                    icon = MolidIcons.Update,
+                    iconTint = M.Cyan,
+                    title = "اتصال رایگان WARP",
+                    subtitle = "بدون لینک و اکانت؛ کلادفلر رایگان",
+                    trailing = { Pill("دریافت", M.Cyan) },
+                    onClick = onWarp,
+                )
+                Hairline()
+                RowItem(
                     icon = MolidIcons.ShieldCheck,
                     iconTint = M.Cyan,
                     title = "تست موتور تونل",
@@ -119,6 +130,45 @@ fun SettingsScreen(
                         )
                     },
                     onClick = onSelfTest,
+                )
+            }
+        }
+
+        SectionLabel("موتورها")
+        GlassCard(radius = 16.dp, alpha = 0.055f) {
+            Column(Modifier.padding(vertical = 2.dp)) {
+                RowItem(
+                    icon = MolidIcons.Globe,
+                    iconTint = M.Mint,
+                    title = "WireGuard",
+                    subtitle = "موتور فعال · تونل واقعی روی TUN",
+                    trailing = { Pill("فعال", M.Mint) },
+                )
+                Hairline()
+                RowItem(
+                    icon = MolidIcons.Shield,
+                    iconTint = M.Cyan,
+                    title = "Tor (Orbot)",
+                    subtitle = "اپ جداگانه · رایگان، بدون کانفیگ",
+                    trailing = { Pill("نصب", M.Cyan) },
+                    onClick = { onOpenLink("https://play.google.com/store/apps/details?id=org.torproject.android") },
+                )
+                Hairline()
+                RowItem(
+                    icon = MolidIcons.Power,
+                    iconTint = M.Amber,
+                    title = "سایفون",
+                    subtitle = "اپ جداگانه · رایگان، بدون کانفیگ",
+                    trailing = { Pill("نصب", M.Amber) },
+                    onClick = { onOpenLink("https://psiphon.ca") },
+                )
+                Hairline()
+                RowItem(
+                    icon = MolidIcons.Swap,
+                    iconTint = M.Muted2,
+                    title = "Shadowsocks / VLESS",
+                    subtitle = "موتور دوم · در نسخهٔ بعد",
+                    trailing = { Pill("به‌زودی", M.Muted2) },
                 )
             }
         }
@@ -309,5 +359,20 @@ private fun Hairline() {
             .padding(horizontal = 12.dp)
             .height(1.dp)
             .background(Color.White.copy(alpha = 0.05f))
+    )
+}
+@Composable
+private fun Pill(text: String, tint: Color) {
+    Text(
+        text,
+        fontSize = 9.sp,
+        fontFamily = MolidFont,
+        fontWeight = FontWeight.SemiBold,
+        lineHeight = 12.sp,
+        color = tint,
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(tint.copy(alpha = 0.12f))
+            .padding(horizontal = 10.dp, vertical = 5.dp),
     )
 }

@@ -2,7 +2,7 @@
 
 کلاینت WireGuard برای اندروید با کاتلین و Jetpack Compose — تونل واقعی، بدون کتابخانهٔ بومی.
 
-[![Release](https://img.shields.io/badge/release-0.3.0-7C5CFF)](https://github.com/hidooch980/MolidVPN/releases/latest)
+[![Release](https://img.shields.io/badge/release-0.4.0-7C5CFF)](https://github.com/hidooch980/MolidVPN/releases/latest)
 
 | خانه | متصل | تنظیمات |
 | --- | --- | --- |
@@ -15,6 +15,8 @@
 - **چیدمان قابل ویرایش**: ترتیب، نمایش، فاصله و مقیاس بخش‌ها از `app/src/main/assets/home_layout.json` خوانده می‌شود؛ استودیو در `design/home-layout-studio.html` و بازگردانی با `build.ps1 -Reset`.
 - **انتخاب هوشمند مسیر**: پینگ خودکار، سریع‌ترین مسیر، تعویض خودکار در قطعی، تست دوره‌ای پینگ.
 - **حریم خصوصی**: قطع اضطراری، DNS امن، شمارندهٔ داده.
+- **اتصال رایگان WARP**: ثبت خودکار دستگاه کلادفلر و ساخت پیکربندی WireGuard، بدون لینک و اکانت.
+- **بخش موتورها**: WireGuard فعال؛ Tor/سایفون به‌صورت اپ جداگانه؛ Shadowsocks/VLESS در نسخهٔ بعد.
 - **بروزرسانی هوشمند**: بررسی مانیفست، تطبیق SHA-256 و امضا پیش از نصب.
 - **رابط RTL** با اعداد فارسی و بیدی جداشده برای متن لاتین.
 

@@ -1,7 +1,9 @@
 package com.molidvpn
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -25,6 +27,7 @@ import androidx.core.content.ContextCompat
 import com.molidvpn.core.VpnController
 import com.molidvpn.core.VpnState
 import com.molidvpn.core.VpnStatus
+import com.molidvpn.core.wg.Warp
 import com.molidvpn.core.wg.WgSelfTest
 import com.molidvpn.ui.screens.SelfTestDialog
 import com.molidvpn.ui.screens.WgConfigDialog
@@ -158,6 +161,24 @@ class MainActivity : ComponentActivity() {
                         onCheckUpdate = { Updater.check(ctx, showToast) },
                         onEditConfig = { showConfig = true },
                         onSelfTest = { runSelfTest() },
+                        onWarp = {
+                            showToast("در حال دریافت پیکربندی رایگان…")
+                            scope.launch {
+                                val text = withContext(Dispatchers.IO) {
+                                    runCatching { Warp.profile() }.getOrNull()
+                                }
+                                if (text == null) {
+                                    showToast("WARP در دسترس نیست؛ بعداً تلاش کن")
+                                } else {
+                                    settings.updateWgConfig(text)
+                                    showToast("پیکربندی WARP ذخیره شد؛ وصل شو")
+                                }
+                            }
+                        },
+                        onOpenLink = { url ->
+                            runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                                .onFailure { showToast("برای باز کردن لینک مرورگری پیدا نشد") }
+                        },
                     )
 
                     if (showConfig) {

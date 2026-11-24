@@ -75,6 +75,8 @@ fun MolidRoot(
     onCheckUpdate: () -> Unit,
     onEditConfig: () -> Unit,
     onSelfTest: () -> Unit,
+    onWarp: () -> Unit,
+    onOpenLink: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var tab by remember { mutableIntStateOf(0) }
@@ -159,6 +161,8 @@ fun MolidRoot(
                         onToast = toastLatest,
                         onEditConfig = onEditConfig,
                         onSelfTest = onSelfTest,
+                        onWarp = onWarp,
+                        onOpenLink = onOpenLink,
                     )
                 }
             }
