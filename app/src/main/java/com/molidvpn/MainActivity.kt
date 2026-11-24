@@ -20,6 +20,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import com.molidvpn.ui.screens.LinkImportDialog
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
@@ -33,7 +34,9 @@ import com.molidvpn.ui.screens.SelfTestDialog
 import com.molidvpn.ui.screens.WgConfigDialog
 import com.molidvpn.data.Server
 import com.molidvpn.data.Servers
+import com.molidvpn.data.ProfileStore
 import com.molidvpn.data.SettingsStore
+import com.molidvpn.net.ConfigLink
 import com.molidvpn.net.Smart
 import com.molidvpn.ui.MolidRoot
 import com.molidvpn.ui.theme.MolidTheme
@@ -56,6 +59,8 @@ class MainActivity : ComponentActivity() {
             var selected by remember { mutableStateOf(Servers.byId(settings.selectedId)) }
             var toast by remember { mutableStateOf<String?>(null) }
             var showConfig by remember { mutableStateOf(false) }
+            var showLink by remember { mutableStateOf(false) }
+            val profiles = remember { ProfileStore(ctx.applicationContext) }
             var selfTestRunning by remember { mutableStateOf(false) }
             var selfTestResults by remember { mutableStateOf<List<WgSelfTest.Check>?>(null) }
             val scope = rememberCoroutineScope()
@@ -161,6 +166,8 @@ class MainActivity : ComponentActivity() {
                         onCheckUpdate = { Updater.check(ctx, showToast) },
                         onEditConfig = { showConfig = true },
                         onSelfTest = { runSelfTest() },
+                        onAddLink = { showLink = true },
+                        profileCount = profiles.all.size,
                         onWarp = {
                             showToast("در حال دریافت پیکربندی رایگان…")
                             scope.launch {
@@ -188,6 +195,21 @@ class MainActivity : ComponentActivity() {
                             onSave = { text ->
                                 settings.updateWgConfig(text)
                                 showToast("پیکربندی تونل ذخیره شد")
+                            },
+                        )
+                    }
+
+                    if (showLink) {
+                        LinkImportDialog(
+                            onDismiss = { showLink = false },
+                            onImport = { text ->
+                                showLink = false
+                                scope.launch {
+                                    val outcome = withContext(Dispatchers.IO) { ConfigLink.read(text) }
+                                    outcome.wireGuard?.let { settings.updateWgConfig(it) }
+                                    profiles.add(outcome.profiles)
+                                    showToast(outcome.message)
+                                }
                             },
                         )
                     }

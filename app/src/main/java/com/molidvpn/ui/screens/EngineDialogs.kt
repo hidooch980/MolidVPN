@@ -259,3 +259,72 @@ fun SelfTestDialog(
         }
     }
 }
+/** Paste any configuration link: WireGuard, Shadowsocks, VLESS/VMess/Trojan or a subscription URL. */
+@Composable
+fun LinkImportDialog(onDismiss: () -> Unit, onImport: (String) -> Unit) {
+    var text by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    DialogShell(
+        title = "افزودن از لینک",
+        subtitle = "wg:// یا ss:// یا vless:// یا trojan:// یا آدرس لینک اشتراک. پیکربندی WireGuard مستقیم فعال می‌شود؛ بقیه ذخیره می‌شوند و با موتور دوم وصل می‌شوند.",
+        onDismiss = onDismiss,
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 90.dp, max = 150.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0xFF06080F))
+                .border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(14.dp))
+                .padding(10.dp),
+        ) {
+            if (text.isEmpty()) {
+                Text(
+                    "wg://…\nss://…\nhttps://…/sub",
+                    fontSize = 9.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = M.Muted2.copy(alpha = 0.6f),
+                    lineHeight = 14.sp,
+                )
+            }
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                BasicTextField(
+                    value = text,
+                    onValueChange = {
+                        text = it
+                        error = null
+                    },
+                    textStyle = TextStyle(
+                        fontSize = 9.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = M.TextDim,
+                        lineHeight = 14.sp,
+                    ),
+                    cursorBrush = SolidColor(M.Mint),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 74.dp, max = 130.dp)
+                        .verticalScroll(rememberScrollState()),
+                )
+            }
+        }
+
+        if (error != null) {
+            Spacer(Modifier.height(6.dp))
+            Text(error!!, fontSize = 8.5.sp, fontFamily = MolidFont, color = M.Rose)
+        }
+
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ActionButton("وارد کن", true, {
+                if (text.isBlank()) {
+                    error = "لینک خالی است"
+                    return@ActionButton
+                }
+                onImport(text.trim())
+            })
+            ActionButton("انصراف", false, onDismiss)
+        }
+    }
+}

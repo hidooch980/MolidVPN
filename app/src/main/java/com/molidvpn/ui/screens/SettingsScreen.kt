@@ -53,6 +53,8 @@ fun SettingsScreen(
     onEditConfig: () -> Unit,
     onSelfTest: () -> Unit,
     onWarp: () -> Unit,
+    onAddLink: () -> Unit,
+    profileCount: Int,
     onOpenLink: (String) -> Unit,
 ) {
     val configSummary = remember(settings.wgConfig) {
@@ -117,6 +119,15 @@ fun SettingsScreen(
                 )
                 Hairline()
                 RowItem(
+                    icon = MolidIcons.Search,
+                    iconTint = M.Mint,
+                    title = "افزودن از لینک",
+                    subtitle = "wg:// ، ss:// ، vless:// یا لینک اشتراک",
+                    trailing = { Pill("افزودن", M.Mint) },
+                    onClick = onAddLink,
+                )
+                Hairline()
+                RowItem(
                     icon = MolidIcons.ShieldCheck,
                     iconTint = M.Cyan,
                     title = "تست موتور تونل",
@@ -167,8 +178,8 @@ fun SettingsScreen(
                     icon = MolidIcons.Swap,
                     iconTint = M.Muted2,
                     title = "Shadowsocks / VLESS",
-                    subtitle = "موتور دوم · در نسخهٔ بعد",
-                    trailing = { Pill("به‌زودی", M.Muted2) },
+                    subtitle = if (profileCount > 0) faNum(profileCount) + " پروفایل ذخیره شده · موتور دوم در نسخهٔ بعد" else "موتور دوم · در نسخهٔ بعد",
+                    trailing = { Pill(if (profileCount > 0) faNum(profileCount) + " ذخیره" else "به‌زودی", M.Muted2) },
                 )
             }
         }

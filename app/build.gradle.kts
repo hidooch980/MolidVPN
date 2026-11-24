@@ -21,8 +21,8 @@ android {
         applicationId = "com.molidvpn"
         minSdk = 26
         targetSdk = 35
-        versionCode = 35
-        versionName = "0.4.4"
+        versionCode = 36
+        versionName = "0.4.5"
     }
 
     signingConfigs {

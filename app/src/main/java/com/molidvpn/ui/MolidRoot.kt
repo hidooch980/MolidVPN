@@ -76,6 +76,8 @@ fun MolidRoot(
     onEditConfig: () -> Unit,
     onSelfTest: () -> Unit,
     onWarp: () -> Unit,
+    onAddLink: () -> Unit,
+    profileCount: Int,
     onOpenLink: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -191,6 +193,8 @@ fun MolidRoot(
                         onEditConfig = onEditConfig,
                         onSelfTest = onSelfTest,
                         onWarp = onWarp,
+                        onAddLink = onAddLink,
+                        profileCount = profileCount,
                         onOpenLink = onOpenLink,
                     )
                 }
