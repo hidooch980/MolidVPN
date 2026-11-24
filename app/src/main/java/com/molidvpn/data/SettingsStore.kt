@@ -19,7 +19,13 @@ class SettingsStore(ctx: Context) {
     var killSwitch by mutableStateOf(p.getBoolean("kill_switch", true)); private set
     var secureDns by mutableStateOf(p.getBoolean("secure_dns", true)); private set
 
+    var mode by mutableStateOf(p.getString("mode", "smart") ?: "smart"); private set
     var wgConfig by mutableStateOf(p.getString("wg_config", "") ?: ""); private set
+
+    fun updateMode(v: String) {
+        mode = v
+        p.edit().putString("mode", v).apply()
+    }
 
     fun updateWgConfig(v: String) {
         wgConfig = v

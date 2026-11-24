@@ -66,12 +66,15 @@ fun Pill(
     dot: Color? = null,
     icon: ImageVector? = null,
     tint: Color = M.TextDim,
+    selected: Boolean = false,
+    onClick: (() -> Unit)? = null,
 ) {
     Row(
         Modifier
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.06f))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), CircleShape)
+            .background(if (selected) M.Violet.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.06f))
+            .border(1.dp, if (selected) M.Violet.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.08f), CircleShape)
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
             .padding(horizontal = 11.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

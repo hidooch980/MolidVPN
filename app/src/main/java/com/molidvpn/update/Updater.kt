@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.molidvpn.BuildConfig
 import org.json.JSONObject
@@ -16,26 +17,27 @@ import java.net.URL
 import java.security.MessageDigest
 
 /**
- * Smart update: fetch a signed manifest, compare versionCode, verify the
- * SHA-256 of the APK *and* that it is signed by the same certificate as the
+ * Smart update: reads a small manifest, compares versionCode, then downloads the
+ * APK, checks its SHA-256 *and* that it carries the same certificate as the
  * installed app before handing it to the installer.
  *
- * Point MANIFEST_URL at your release channel (GitHub Releases metadata or
- * your own endpoint). Empty means "not configured yet".
+ * Every address below has a mirror first: Iranian networks routinely block
+ * raw.githubusercontent.com and the GitHub asset host, while the jsDelivr CDN
+ * usually stays reachable. The manifest itself may list further mirrors.
  */
 object Updater {
-    private const val MANIFEST_URL =
-        "https://raw.githubusercontent.com/hidooch980/MolidVPN/main/release/update.json"
+    private val MANIFESTS = listOf(
+        "https://cdn.jsdelivr.net/gh/hidooch980/MolidVPN@main/release/update.json",
+        "https://fastly.jsdelivr.net/gh/hidooch980/MolidVPN@main/release/update.json",
+        "https://raw.githubusercontent.com/hidooch980/MolidVPN/main/release/update.json",
+    )
+
+    const val RELEASE_PAGE = "https://github.com/hidooch980/MolidVPN/releases/latest"
 
     fun check(ctx: Context, onResult: (String) -> Unit) {
-        if (MANIFEST_URL.isBlank()) {
-            onResult("نسخهٔ " + BuildConfig.VERSION_NAME + " تازه‌ترین نسخه است")
-            return
-        }
         Thread {
             try {
-                val body = http(MANIFEST_URL)
-                val json = JSONObject(body)
+                val json = manifest()
                 val code = json.optInt("versionCode", 0)
                 if (code <= BuildConfig.VERSION_CODE) {
                     post { onResult("نسخهٔ " + BuildConfig.VERSION_NAME + " تازه‌ترین نسخه است") }
@@ -43,11 +45,26 @@ object Updater {
                 }
                 val version = json.optString("versionName", code.toString())
                 val expected = json.optString("sha256", "").lowercase()
-                val apkUrl = json.getString("url")
-                val apk = File(ctx.cacheDir, "molid-update.apk")
-                if (apk.exists()) apk.delete()
-                http(apkUrl, apk)
+                val sources = mirrors(json)
 
+                val apk = File(ctx.cacheDir, "molid-update.apk")
+                var downloaded = false
+                for (link in sources) {
+                    try {
+                        if (apk.exists()) apk.delete()
+                        http(link, apk)
+                        if (apk.length() > 1_000_000L) {
+                            downloaded = true
+                            break
+                        }
+                    } catch (e: Exception) {
+                        // try the next mirror
+                    }
+                }
+                if (!downloaded) {
+                    post { onResult("دانلود نسخهٔ " + version + " ناموفق بود") }
+                    return@Thread
+                }
                 if (expected.isNotEmpty() && sha256(apk) != expected) {
                     apk.delete()
                     post { onResult("بستهٔ دانلودشده سالم نیست") }
@@ -58,12 +75,53 @@ object Updater {
                     post { onResult("امضای بستهٔ جدید با این نسخه نمی‌خواند") }
                     return@Thread
                 }
+                if (!canInstall(ctx)) {
+                    post { onResult("اجازهٔ نصب بسته را روشن کن و دوباره بزن") }
+                    post { allowInstall(ctx) }
+                    return@Thread
+                }
                 post { onResult("نسخهٔ " + version + " آمادهٔ نصب است") }
                 post { install(ctx, apk) }
             } catch (e: Exception) {
-                post { onResult("بررسی بروزرسانی ناموفق بود") }
+                post { onResult("بررسی بروزرسانی ناموفق بود؛ از صفحهٔ انتشار دانلود کن") }
             }
         }.start()
+    }
+
+    private fun manifest(): JSONObject {
+        var last: Exception? = null
+        for (link in MANIFESTS) {
+            try {
+                return JSONObject(http(link))
+            } catch (e: Exception) {
+                last = e
+            }
+        }
+        throw last ?: IllegalStateException("no manifest")
+    }
+
+    /** Download links in order: the manifest mirrors first, then the official asset. */
+    private fun mirrors(json: JSONObject): List<String> {
+        val out = ArrayList<String>()
+        val array = json.optJSONArray("mirrors")
+        if (array != null) {
+            for (i in 0 until array.length()) {
+                val link = array.optString(i)
+                if (link.isNotBlank()) out.add(link)
+            }
+        }
+        val main = json.optString("url")
+        if (main.isNotBlank()) out.add(main)
+        return out
+    }
+
+    private fun canInstall(ctx: Context): Boolean =
+        Build.VERSION.SDK_INT < 26 || ctx.packageManager.canRequestPackageInstalls()
+
+    private fun allowInstall(ctx: Context) {
+        val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + ctx.packageName))
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { ctx.startActivity(intent) }
     }
 
     private fun install(ctx: Context, apk: File) {
@@ -73,21 +131,25 @@ object Updater {
             setDataAndType(uri, "application/vnd.android.package-archive")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        ctx.startActivity(intent)
+        runCatching { ctx.startActivity(intent) }
     }
 
     private fun http(url: String): String {
         val c = URL(url).openConnection() as HttpURLConnection
         c.connectTimeout = 12000
         c.readTimeout = 12000
+        c.instanceFollowRedirects = true
         c.setRequestProperty("Accept", "application/json")
+        c.setRequestProperty("User-Agent", "MolidVPN/" + BuildConfig.VERSION_NAME)
         return c.inputStream.bufferedReader().use { it.readText() }
     }
 
     private fun http(url: String, out: File) {
         val c = URL(url).openConnection() as HttpURLConnection
         c.connectTimeout = 15000
-        c.readTimeout = 30000
+        c.readTimeout = 45000
+        c.instanceFollowRedirects = true
+        c.setRequestProperty("User-Agent", "MolidVPN/" + BuildConfig.VERSION_NAME)
         c.inputStream.use { input -> out.outputStream().use { input.copyTo(it) } }
     }
 

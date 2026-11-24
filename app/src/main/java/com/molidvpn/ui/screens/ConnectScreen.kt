@@ -82,6 +82,8 @@ fun ConnectScreen(
     rx: Double,
     tx: Double,
     servers: List<Server>,
+    mode: String,
+    onMode: (String) -> Unit,
     onToggle: () -> Unit,
     onSelect: (Server) -> Unit,
     onToast: (String) -> Unit,
@@ -113,7 +115,7 @@ fun ConnectScreen(
     ) {
         sections.forEach { section ->
             when (section.id) {
-                "modes" -> ModesSection(connected, live)
+                "modes" -> ModesSection(mode, onMode)
                 "orb" -> OrbSection(live, connected, connecting, clock, onToggle, section.scale)
                 "state" -> StateSection(connected, connecting, server)
                 "status_card" -> StatusCardSection(
@@ -146,28 +148,31 @@ fun ConnectScreen(
     }
 }
 
+private val MODES = listOf(
+    Triple("smart", "هوشمند", MolidIcons.Sparkle),
+    Triple("safe", "امن", MolidIcons.ShieldCheck),
+    Triple("free", "رایگان WARP", MolidIcons.Update),
+)
+
 @Composable
-private fun ModesSection(connected: Boolean, live: Boolean) {
+private fun ModesSection(mode: String, onMode: (String) -> Unit) {
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Pill(
-            text = "اتصال امن",
-            dot = when {
-                connected -> M.Mint
-                live -> M.Amber
-                else -> M.Muted2
-            },
-            tint = if (live) M.TextDim else M.Muted,
-        )
-        Spacer(Modifier.width(6.dp))
-        Pill(
-            text = "انتخاب هوشمند",
-            icon = MolidIcons.Sparkle,
-            tint = M.Cyan.copy(alpha = 0.9f),
-        )
+        MODES.forEachIndexed { index, item ->
+            if (index > 0) Spacer(Modifier.width(6.dp))
+            val active = mode == item.first
+            Pill(
+                text = item.second,
+                icon = item.third,
+                dot = if (active) M.Mint else null,
+                tint = if (active) M.Text else M.Muted,
+                selected = active,
+                onClick = { onMode(item.first) },
+            )
+        }
     }
 }
 

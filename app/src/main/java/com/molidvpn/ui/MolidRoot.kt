@@ -129,6 +129,32 @@ fun MolidRoot(
                         rx = rx,
                         tx = tx,
                         servers = Servers.all,
+                        mode = settings.mode,
+                        onMode = { m ->
+                            settings.updateMode(m)
+                            when (m) {
+                                "safe" -> {
+                                    settings.updateKillSwitch(true)
+                                    settings.updateSecureDns(true)
+                                    settings.updateFailover(false)
+                                    toastLatest("حالت امن: فقط مسیر انتخابی")
+                                }
+                                "free" -> {
+                                    if (settings.wgConfig.contains("162.159.192.")) {
+                                        toastLatest("حالت رایگان WARP فعال است")
+                                    } else {
+                                        toastLatest("در حال ساخت پیکربندی رایگان…")
+                                        onWarp()
+                                    }
+                                }
+                                else -> {
+                                    settings.updateSmartSelect(true)
+                                    settings.updateAutoPing(true)
+                                    settings.updateFailover(true)
+                                    toastLatest("حالت هوشمند فعال شد")
+                                }
+                            }
+                        },
                         onToggle = onToggle,
                         onSelect = { s -> onSelect(s) },
                         onToast = toastLatest,
