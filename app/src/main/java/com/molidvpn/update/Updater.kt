@@ -91,9 +91,12 @@ object Updater {
 
     private fun manifest(): JSONObject {
         var last: Exception? = null
+        // The CDNs cache branch files for minutes after a release; the unique
+        // query makes every check a fresh fetch instead of a stale hit.
+        val bust = "?t=" + System.currentTimeMillis()
         for (link in MANIFESTS) {
             try {
-                return JSONObject(http(link))
+                return JSONObject(http(link + bust))
             } catch (e: Exception) {
                 last = e
             }
