@@ -147,6 +147,8 @@ fun MolidRoot(
                                         onWarp()
                                     }
                                 }
+                                "psiphon" -> toastLatest("سایفون: اپ جداگانه را نصب کن و آن‌جا وصل شو")
+                                "tor" -> toastLatest("تور: Orbot را نصب کن و آن‌جا وصل شو")
                                 else -> {
                                     settings.updateSmartSelect(true)
                                     settings.updateAutoPing(true)
@@ -155,6 +157,7 @@ fun MolidRoot(
                                 }
                             }
                         },
+                        onOpenLink = onOpenLink,
                         onToggle = onToggle,
                         onSelect = { s -> onSelect(s) },
                         onToast = toastLatest,

@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import com.molidvpn.data.Server
 import com.molidvpn.net.Smart
 import com.molidvpn.ui.components.FlagChip
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.molidvpn.ui.components.GlassCard
 import com.molidvpn.ui.components.OrbitReactor
 import com.molidvpn.ui.components.Pill
@@ -84,6 +85,7 @@ fun ConnectScreen(
     servers: List<Server>,
     mode: String,
     onMode: (String) -> Unit,
+    onOpenLink: (String) -> Unit,
     onToggle: () -> Unit,
     onSelect: (Server) -> Unit,
     onToast: (String) -> Unit,
@@ -118,18 +120,15 @@ fun ConnectScreen(
                 "modes" -> ModesSection(mode, onMode)
                 "orb" -> OrbSection(live, connected, connecting, clock, onToggle, section.scale)
                 "state" -> StateSection(connected, connecting, server)
-                "status_card" -> StatusCardSection(
+                "status_card" -> ModeCardSection(
+                    mode = mode,
                     connected = connected,
-                    connecting = connecting,
-                    engineDetail = engineDetail,
-                    handshakeAge = handshakeAge,
-                    server = server,
-                    ping = ping,
                     timer = timer,
-                    rx = rx,
-                    tx = tx,
                     open = open == 1,
                     onToggle = { open = if (open == 1) 0 else 1 },
+                    onMode = onMode,
+                    onOpenLink = onOpenLink,
+                    onToast = onToast,
                 )
                 "exits_card" -> ExitsCardSection(
                     server = server,
@@ -249,6 +248,88 @@ private fun StateSection(connected: Boolean, connecting: Boolean, server: Server
                         color = M.Muted2,
                         fontFamily = FontFamily.Monospace,
                     )
+                }
+            }
+        }
+    }
+}
+
+/** The connection modes offered on the home screen, in the order they are shown. */
+private data class ConnMode(
+    val id: String,
+    val title: String,
+    val note: String,
+    val icon: ImageVector,
+    val tint: Color,
+)
+
+private val CONN_MODES = listOf(
+    ConnMode("smart", "اتوماتیک", "سریع‌ترین مسیر، تعویض خودکار", MolidIcons.Sparkle, M.Cyan),
+    ConnMode("free", "وارپ (رایگان)", "کلادفلر · بدون لینک و اکانت", MolidIcons.Update, M.Violet),
+    ConnMode("psiphon", "سایفون", "اپ جداگانه · نصب از psiphon.ca", MolidIcons.Power, M.Amber),
+    ConnMode("tor", "تور (Orbot)", "اپ جداگانه · بدون کانفیگ", MolidIcons.Shield, M.Mint),
+    ConnMode("ss", "شادوساکس / VLESS", "موتور دوم · نسخهٔ بعد", MolidIcons.Swap, M.Muted2),
+)
+
+@Composable
+private fun ModeCardSection(
+    mode: String,
+    connected: Boolean,
+    timer: String,
+    open: Boolean,
+    onToggle: () -> Unit,
+    onMode: (String) -> Unit,
+    onOpenLink: (String) -> Unit,
+    onToast: (String) -> Unit,
+) {
+    val current = CONN_MODES.firstOrNull { it.id == mode } ?: CONN_MODES.first()
+    DrawerCard(
+        icon = MolidIcons.Swap,
+        tint = if (connected) M.Mint else current.tint,
+        title = "حالت اتصال",
+        summary = current.title + if (connected) "  ·  متصل  ·  " + timer else "  ·  " + current.note,
+        open = open,
+        onToggle = onToggle,
+    ) {
+        Column(Modifier.padding(horizontal = 7.dp, vertical = 6.dp)) {
+            CONN_MODES.forEach { item ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            when (item.id) {
+                                "psiphon" -> {
+                                    onMode(item.id)
+                                    onOpenLink("https://psiphon.ca")
+                                }
+                                "tor" -> {
+                                    onMode(item.id)
+                                    onOpenLink("https://play.google.com/store/apps/details?id=org.torproject.android")
+                                }
+                                "ss" -> onToast("شادوساکس/VLESS در نسخهٔ بعد می‌آید")
+                                else -> onMode(item.id)
+                            }
+                            onToggle()
+                        }
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        Modifier
+                            .size(26.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(item.tint.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(item.icon, null, Modifier.size(14.dp), tint = item.tint) }
+                    Spacer(Modifier.width(9.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(item.title, fontSize = 11.sp, color = M.Text, fontFamily = MolidFont, fontWeight = FontWeight.SemiBold)
+                        Text(item.note, fontSize = 8.sp, color = M.Muted2, fontFamily = MolidFont, lineHeight = 11.sp)
+                    }
+                    if (item.id == mode) {
+                        Box(Modifier.size(7.dp).background(item.tint, CircleShape))
+                    }
                 }
             }
         }
