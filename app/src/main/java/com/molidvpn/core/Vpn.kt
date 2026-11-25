@@ -27,6 +27,9 @@ object VpnState {
     /** Which engine is really carrying traffic: "wireguard", "psiphon", "tor", "xray". */
     var engine by mutableStateOf("")
 
+    /** Local SOCKS port the active engine exposes; 0 when no engine is up. */
+    var socksPort by mutableIntStateOf(0)
+
     val connected: Boolean get() = status == VpnStatus.CONNECTED
     /** True while the tunnel is coming up but the handshake has not completed. */
     val handshaking: Boolean get() = status == VpnStatus.CONNECTING
@@ -54,6 +57,7 @@ object VpnState {
         rxBytes = 0L
         txBytes = 0L
         detail = ""
+        socksPort = 0
     }
 }
 

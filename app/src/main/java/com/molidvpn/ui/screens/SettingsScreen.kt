@@ -19,7 +19,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import com.molidvpn.core.free.FreePool
 import com.molidvpn.core.wg.WgConfig
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 import com.molidvpn.ui.icons.MolidIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -34,7 +38,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.molidvpn.BuildConfig
-import com.molidvpn.data.Server
 import com.molidvpn.data.SettingsStore
 import com.molidvpn.ui.components.GlassCard
 import com.molidvpn.ui.components.MolidSwitch
@@ -47,7 +50,6 @@ import com.molidvpn.ui.theme.MolidFont
 @Composable
 fun SettingsScreen(
     settings: SettingsStore,
-    server: Server,
     onCheckUpdate: () -> Unit,
     onToast: (String) -> Unit,
     onEditConfig: () -> Unit,
@@ -82,7 +84,7 @@ fun SettingsScreen(
         )
 
         Spacer(Modifier.height(8.dp))
-        PlanCard(server = server)
+        PoolCard()
 
         SectionLabel("تونل")
         GlassCard(radius = 16.dp, alpha = 0.055f) {
@@ -176,8 +178,8 @@ fun SettingsScreen(
                     icon = MolidIcons.Swap,
                     iconTint = M.Violet,
                     title = "Xray",
-                    subtitle = if (profileCount > 0) "هستهٔ داخلی · " + faNum(profileCount) + " پروفایل SS/VLESS آماده" else "هستهٔ داخلی · از «افزودن از لینک» پروفایل اضافه کن",
-                    trailing = { Pill(if (profileCount > 0) faNum(profileCount) + " آماده" else "خالی", if (profileCount > 0) M.Mint else M.Muted2) },
+                    subtitle = if (profileCount > 0) "هستهٔ داخلی · " + faNum(profileCount) + " پروفایل دستی + کانفیگ رایگان خودکار" else "هستهٔ داخلی · کانفیگ رایگان خودکار، لینک دستی هم می‌پذیرد",
+                    trailing = { Pill("داخلی", M.Violet) },
                 )
             }
         }
@@ -288,73 +290,53 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun PlanCard(server: Server) {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        M.Violet.copy(alpha = 0.22f),
-                        M.Cyan.copy(alpha = 0.06f),
-                        Color.White.copy(alpha = 0.02f),
-                    )
-                )
-            )
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
-            .padding(12.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.10f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("م", fontSize = 16.sp, fontFamily = MolidFont, fontWeight = FontWeight.Bold, color = M.Text)
-            }
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
+private fun PoolCard() {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val healthy = FreePool.nodes.size
+    val node = FreePool.best("auto")
+    GlassCard(radius = 16.dp, alpha = 0.055f) {
+        Column(Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "حساب آزاد",
+                    "سرورهای رایگان",
                     fontSize = 12.5.sp,
                     fontFamily = MolidFont,
                     fontWeight = FontWeight.Bold,
                     color = M.Text,
+                    modifier = Modifier.weight(1f),
                 )
-                Spacer(Modifier.height(2.dp))
                 Text(
-                    "۱۰ GB ماهانه · ۰ از ۳ دستگاه",
-                    fontSize = 8.5.sp,
+                    if (FreePool.busy) "در حال تست…" else faNum(healthy) + " سالم",
+                    fontSize = 9.sp,
                     fontFamily = MolidFont,
-                    color = M.TextDim.copy(alpha = 0.75f),
+                    color = M.Mint,
                 )
-                Spacer(Modifier.height(3.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(4.dp).background(M.Mint, CircleShape))
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        "مسیر فعال: " + server.title,
-                        fontSize = 8.sp,
-                        fontFamily = MolidFont,
-                        color = M.Mint.copy(alpha = 0.85f),
-                    )
-                }
             }
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.height(4.dp))
             Text(
-                "ارتقا",
+                if (node != null)
+                    FreePool.flagOf(node.country) + " " + FreePool.nameOf(node.country) +
+                        " · " + faNum(node.latency) + " ms · بهترین گزینه"
+                else "هنوز سروری تست نشده؛ موقع اتصال خودکار گرفته می‌شود",
+                fontSize = 8.5.sp,
+                fontFamily = MolidFont,
+                color = M.TextDim.copy(alpha = 0.8f),
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                if (FreePool.busy) "در حال تست سرورهای عمومی…" else "به‌روزرسانی فهرست",
                 fontSize = 9.5.sp,
                 fontFamily = MolidFont,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF160F2E),
-                lineHeight = 12.sp,
+                color = M.Cyan,
                 modifier = Modifier
                     .clip(CircleShape)
-                    .background(M.Mint)
-                    .padding(horizontal = 11.dp, vertical = 5.dp),
+                    .clickable(enabled = !FreePool.busy) {
+                        scope.launch { FreePool.ensure(ctx, 110_000, force = true) }
+                    }
+                    .background(M.Cyan.copy(alpha = 0.10f))
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
             )
         }
     }

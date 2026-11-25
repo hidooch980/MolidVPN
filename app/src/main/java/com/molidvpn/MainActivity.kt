@@ -37,7 +37,9 @@ import com.molidvpn.data.Servers
 import com.molidvpn.data.ProfileStore
 import com.molidvpn.data.SettingsStore
 import com.molidvpn.net.ConfigLink
+import com.molidvpn.net.GooglePing
 import com.molidvpn.net.Smart
+import com.molidvpn.core.free.FreePool
 import com.molidvpn.ui.MolidRoot
 import com.molidvpn.ui.theme.MolidTheme
 import com.molidvpn.update.Updater
@@ -117,6 +119,14 @@ class MainActivity : ComponentActivity() {
                 Smart.test(s)
             }
 
+            // The ping card shows a measured Google round-trip, refreshed while the app is open.
+            LaunchedEffect(Unit) {
+                FreePool.load(ctx)
+                while (true) {
+                    GooglePing.measure()
+                    delay(8000)
+                }
+            }
             LaunchedEffect(Unit) {
                 Smart.test(selected)
                 if (Build.VERSION.SDK_INT >= 33 &&
@@ -160,7 +170,7 @@ class MainActivity : ComponentActivity() {
                         handshakeAge = VpnState.handshakeAge,
                         startedAt = VpnState.startedAt,
                         selected = selected,
-                        ping = Smart.pings[selected.id],
+                        ping = GooglePing.ms,
                         rx = VpnState.rxMbps,
                         tx = VpnState.txMbps,
                         toast = toast,

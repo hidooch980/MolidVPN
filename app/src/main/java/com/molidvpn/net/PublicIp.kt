@@ -6,13 +6,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.molidvpn.core.cores.SocksCore
 import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * The address the outside world sees for this device. It is read over plain
- * HTTPS, so behind the tunnel it reports the exit node and not the subscriber
- * line: the same card then answers "where do I appear from?" in both states.
+ * The address of this device as the network sees it, read over plain HTTPS.
+ * The VPN app own sockets bypass its own tunnel, so this is always the local
+ * line; [ExitIp] is the one that reports what the tunnel exposes.
  */
 object MyIp {
     private val IP = Regex("^[0-9a-fA-F:.]{7,45}$")
@@ -49,5 +50,19 @@ object MyIp {
         } finally {
             conn.disconnect()
         }
+    }
+}
+/** The address the tunnel really exposes, read through the engine own SOCKS port. */
+object ExitIp {
+    var value by mutableStateOf<String?>(null)
+        private set
+
+    suspend fun refresh(port: Int) = withContext(Dispatchers.IO) {
+        val ip = SocksCore.ipViaSocks(port)
+        if (ip != null) value = ip
+    }
+
+    fun clear() {
+        value = null
     }
 }

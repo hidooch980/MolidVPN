@@ -28,6 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import com.molidvpn.ui.faNum
 import com.molidvpn.ui.icons.MolidIcons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -41,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,8 +58,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.molidvpn.core.free.FreePool
 import com.molidvpn.core.wg.TunnelProfiles
 import com.molidvpn.data.Server
+import com.molidvpn.data.SettingsStore
+import kotlinx.coroutines.launch
 import com.molidvpn.net.Smart
 import com.molidvpn.ui.components.FlagChip
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -91,6 +96,8 @@ fun ConnectScreen(
     tx: Double,
     servers: List<Server>,
     mode: String,
+    country: String,
+    onCountry: (String) -> Unit,
     myIp: String?,
     autoExit: Boolean,
     onMode: (String) -> Unit,
@@ -135,17 +142,13 @@ fun ConnectScreen(
     ) {
         sections.forEach { section ->
             // Mode and exit now share one compact row, so this section is merged away.
-            if (section.id == "exits_card") return@forEach
+            if (section.id == "exits_card" || section.id == "modes") return@forEach
             when (section.id) {
-                "modes" -> ModesSection(mode, onMode)
                 "orb" -> OrbSection(phase, clock, onToggle, section.scale)
-                "state" -> StateSection(connected, connecting, server, myIp)
-                "status_card" -> PickerRow(
-                    mode = mode,
-                    server = server,
-                    autoExit = autoExit,
-                    onMode = { sheet = 1 },
-                    onExit = { sheet = 2 },
+                "state" -> StateSection(connected, connecting, myIp)
+                "status_card" -> LocationCard(
+                    country = country,
+                    onClick = { sheet = 1 },
                 )
                 "metrics" -> MetricsSection(connected, ping, rx, tx)
                 "hint" -> HintSection(connected, connecting, failed, handshakeAge, engineDetail, engine)
@@ -155,31 +158,15 @@ fun ConnectScreen(
     }
 
     if (sheet == 1) {
-        ModeSheet(
-            current = mode,
-            profile = wgProfile,
-            onProfile = onProfile,
-            onPick = { id ->
+        LocationSheet(
+            country = country,
+            onPick = { code ->
                 sheet = 0
-                onMode(id)
-            },
-            onDismiss = { sheet = 0 },
-        )
-    }
-    if (sheet == 2) {
-        ExitSheet(
-            server = server,
-            servers = servers,
-            auto = autoExit,
-            onAuto = {
-                sheet = 0
-                onAutoExit()
-                onToast("مکان خروجی: خودکار — سریع‌ترین مسیر")
-            },
-            onSelect = { s ->
-                sheet = 0
-                onSelect(s)
-                onToast("مکان خروجی: " + s.title)
+                onCountry(code)
+                onToast(
+                    if (code == "auto") "لوکیشن: خودکار — سریع‌ترین سرور"
+                    else "لوکیشن: " + FreePool.flagOf(code) + " " + FreePool.nameOf(code)
+                )
             },
             onDismiss = { sheet = 0 },
         )
@@ -235,7 +222,6 @@ private fun OrbSection(
 private fun StateSection(
     connected: Boolean,
     connecting: Boolean,
-    server: Server,
     myIp: String?,
 ) {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -250,33 +236,10 @@ private fun StateSection(
             )
             Spacer(Modifier.height(8.dp))
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            FlagChip(server.flag, 18.dp)
-            Spacer(Modifier.width(7.dp))
-            Text(
-                server.title,
-                fontSize = 13.sp,
-                color = if (connected) M.TextDim else M.Muted,
-                fontFamily = MolidFont,
-                fontWeight = FontWeight.Medium,
-            )
-            Spacer(Modifier.width(5.dp))
-            Text("·", fontSize = 9.sp, color = M.Muted2)
-            Spacer(Modifier.width(5.dp))
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                Text(
-                    server.ip,
-                    fontSize = 10.5.sp,
-                    color = M.Muted2,
-                    fontFamily = FontFamily.Monospace,
-                )
-            }
-        }
         if (myIp != null) {
-            Spacer(Modifier.height(3.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "IP شما",
+                    if (connected) "IP خروجی" else "IP شما",
                     fontSize = 9.5.sp,
                     color = M.Muted2,
                     fontFamily = MolidFont,
@@ -296,6 +259,185 @@ private fun StateSection(
 }
 
 /** The connection modes offered on the home screen, in the order they are shown. */
+@Composable
+private fun LocationCard(country: String, onClick: () -> Unit) {
+    val node = FreePool.best(country)
+    val countries = FreePool.countries()
+    val shown = if (country == "auto") (node?.country ?: "ZZ") else country
+    val title = if (country == "auto") "خودکار" else FreePool.nameOf(country)
+    val sub = when {
+        FreePool.busy -> "در حال تست سرورهای عمومی…"
+        node == null -> "سرور آماده نیست · هستهٔ سایفون جایگزین می‌شود"
+        country == "auto" -> "سریع‌ترین · " + FreePool.nameOf(node.country)
+        else -> (countries.firstOrNull { it.code == country }?.count ?: 0).toString() + " سرور در این لوکیشن"
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White.copy(alpha = 0.045f))
+            .border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(14.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(34.dp).clip(CircleShape).background(M.Cyan.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (shown == "ZZ") Icon(MolidIcons.Globe, contentDescription = null, Modifier.size(16.dp), tint = M.Cyan)
+            else Text(FreePool.flagOf(shown), fontSize = 16.sp)
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text("لوکیشن", fontSize = 8.sp, color = M.Muted2, fontFamily = MolidFont)
+            Text(title, fontSize = 13.sp, color = M.Text, fontFamily = MolidFont, fontWeight = FontWeight.SemiBold)
+            Text(sub, fontSize = 7.5.sp, color = M.Muted2, fontFamily = MolidFont, lineHeight = 10.sp)
+        }
+        if (node != null) {
+            Text(
+                faNum(node.latency) + " ms",
+                fontSize = 11.sp,
+                color = M.Mint,
+                fontFamily = MolidFont,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.width(8.dp))
+        }
+        Text("تغییر", fontSize = 9.sp, color = M.Cyan, fontFamily = MolidFont)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LocationSheet(country: String, onPick: (String) -> Unit, onDismiss: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
+    val countries = FreePool.countries()
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = M.Ink2,
+        contentColor = M.Text,
+        dragHandle = null,
+    ) {
+        Column(
+            Modifier
+                .padding(horizontal = 14.dp)
+                .padding(bottom = 18.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "لوکیشن",
+                    fontSize = 13.sp,
+                    fontFamily = MolidFont,
+                    fontWeight = FontWeight.SemiBold,
+                    color = M.Text,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    if (countries.isEmpty()) "فهرست خالی" else faNum(countries.size) + " کشور",
+                    fontSize = 8.5.sp,
+                    color = M.Muted2,
+                    fontFamily = MolidFont,
+                )
+            }
+            LocationRow(
+                flag = "✨",
+                title = "خودکار",
+                note = "سریع‌ترین سرور به‌صورت خودکار",
+                latency = FreePool.best("auto")?.latency,
+                selected = country == "auto",
+                onClick = { onPick("auto") },
+            )
+            countries.forEach { c ->
+                LocationRow(
+                    flag = FreePool.flagOf(c.code),
+                    title = FreePool.nameOf(c.code),
+                    note = faNum(c.count) + " سرور",
+                    latency = c.latency,
+                    selected = country == c.code,
+                    onClick = { onPick(c.code) },
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(M.Cyan.copy(alpha = 0.10f))
+                    .border(1.dp, M.Cyan.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                    .clickable(enabled = !FreePool.busy) {
+                        scope.launch { FreePool.ensure(ctx, 110_000, force = true) }
+                    }
+                    .padding(vertical = 10.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    if (FreePool.busy) "در حال تست سرورهای عمومی…" else "به‌روزرسانی سرورهای رایگان",
+                    fontSize = 10.sp,
+                    color = M.Cyan,
+                    fontFamily = MolidFont,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            if (FreePool.status.isNotEmpty()) {
+                Text(
+                    FreePool.status,
+                    fontSize = 8.sp,
+                    color = M.Muted2,
+                    fontFamily = MolidFont,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+                )
+            }
+            Text(
+                "سرورها از فهرست‌های عمومی گیت‌هاب گرفته و با هستهٔ خود برنامه تست می‌شوند؛ فقط آن‌هایی که واقعاً جواب دادند در فهرست می‌مانند.",
+                fontSize = 7.5.sp,
+                color = M.Muted2,
+                fontFamily = MolidFont,
+                lineHeight = 11.sp,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun LocationRow(
+    flag: String,
+    title: String,
+    note: String,
+    latency: Int?,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) M.Cyan.copy(alpha = 0.10f) else Color.Transparent)
+            .clickable { onClick() }
+            .padding(horizontal = 8.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (selected) Box(Modifier.size(7.dp).background(M.Cyan, CircleShape)) else Spacer(Modifier.size(7.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(flag, fontSize = 15.sp)
+        Spacer(Modifier.width(9.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 11.5.sp, color = M.Text, fontFamily = MolidFont, fontWeight = FontWeight.SemiBold)
+            Text(note, fontSize = 8.sp, color = M.Muted2, fontFamily = MolidFont)
+        }
+        Text(
+            if (latency == null) "—" else faNum(latency) + " ms",
+            fontSize = 10.sp,
+            color = if (latency == null) M.Muted2 else M.Mint,
+            fontFamily = MolidFont,
+        )
+    }
+}
+
 private data class ConnMode(
     val id: String,
     val title: String,
@@ -660,9 +802,9 @@ private fun MetricsSection(connected: Boolean, ping: Int?, rx: Double, tx: Doubl
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
         Metric(
             Modifier.weight(1f),
-            value = if (connected) faNum(ping ?: 0) else "—",
-            unit = if (connected) "ms" else "",
-            label = "پینگ",
+            value = if (ping != null) faNum(ping) else "—",
+            unit = if (ping != null) "ms" else "",
+            label = "پینگ گوگل",
             accent = M.Cyan,
         )
         Metric(

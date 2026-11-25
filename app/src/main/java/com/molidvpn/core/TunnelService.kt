@@ -8,6 +8,8 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.VpnService
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.util.Log
@@ -15,6 +17,7 @@ import androidx.core.app.NotificationCompat
 import com.molidvpn.MainActivity
 import com.molidvpn.R
 import com.molidvpn.core.cores.SocksCore
+import com.molidvpn.core.free.FreePool
 import com.molidvpn.core.psi.PsiphonEngine
 import com.molidvpn.data.ProfileStore
 import com.molidvpn.core.wg.TunnelProfiles
@@ -23,6 +26,7 @@ import com.molidvpn.core.wg.WgEngine
 import com.molidvpn.data.SettingsStore
 import java.net.DatagramSocket
 import java.net.NetworkInterface
+import kotlinx.coroutines.runBlocking
 
 /**
  * Builds the TUN interface from the imported WireGuard configuration, then hands
@@ -103,14 +107,15 @@ class TunnelService : VpnService() {
                 startCore(SocksCore.Kind.XRAY, link)
                 return
             }
-            "smart" -> {
-                // Smart: WARP first when a config exists, then the in-app cores in order.
+            "smart", "auto" -> {
+                // Auto: a real WireGuard config wins; otherwise the public pool,
+                // then the bundled Psiphon core. Nothing is asked from the user.
                 fallback.clear()
-                fallback.addAll(listOf("psiphon", "tor", "xray"))
                 if (SettingsStore(this).wgConfig.isBlank()) {
-                    nextFallback("")
+                    startFree()
                     return
                 }
+                fallback.addAll(listOf("free", "psiphon"))
             }
         }
         VpnState.status = VpnStatus.CONNECTING
@@ -227,6 +232,7 @@ class TunnelService : VpnService() {
         teardownInterface()
         val mode = fallback.removeFirstOrNull()
         when (mode) {
+            "free" -> startFree()
             "psiphon" -> startPsiphon()
             "tor" -> startCore(SocksCore.Kind.TOR, null)
             "xray" -> {
@@ -235,6 +241,28 @@ class TunnelService : VpnService() {
             }
             else -> fail(previousDetail.ifBlank { "هیچ مسیری برقرار نشد" })
         }
+    }
+
+    private fun startFree() {
+        VpnState.status = VpnStatus.CONNECTING
+        VpnState.engine = "xray"
+        VpnState.detail = "در حال انتخاب سرور رایگان…"
+        startForegroundCompat(buildNotification("در حال انتخاب سرور رایگان…"))
+        val ctx = this
+        Thread({
+            val nodes = runCatching { runBlocking { FreePool.ensure(ctx, 90_000) } }.getOrDefault(emptyList())
+            val node = FreePool.best(SettingsStore(ctx).freeCountry) ?: nodes.minByOrNull { it.latency }
+            Handler(Looper.getMainLooper()).post {
+                if (shuttingDown) return@post
+                if (node == null) {
+                    Log.d("MolidVpn", "free pool empty; falling back to psiphon")
+                    startPsiphon()
+                } else {
+                    Log.d("MolidVpn", "free node " + node.country + " " + node.latency + "ms")
+                    startCore(SocksCore.Kind.XRAY, node.link)
+                }
+            }
+        }, "free-pick").apply { isDaemon = true }.start()
     }
 
     /** The first share link Xray can run, if any has been imported or provisioned. */
@@ -352,7 +380,7 @@ class TunnelService : VpnService() {
     private fun establishTun(): Boolean {
         val addr = pickTunAddress()
         val builder = Builder()
-            .setSession("MolidoVPN · سایفون")
+            .setSession("MolidoVPN")
             .setMtu(Tun2Socks.MTU)
         // The cores run inside this app; excluding it keeps their own sockets out of the TUN.
         try { builder.addDisallowedApplication(packageName) } catch (_: Exception) {}
@@ -379,6 +407,7 @@ class TunnelService : VpnService() {
     private fun bridgePsiphon(socksPort: Int) {
         if (iface != null) return
         if (!establishTun()) return
+        VpnState.socksPort = socksPort
         val tun = iface ?: return
         val addr = tunAddr ?: return
         // DNS rides DNS-over-TCP through the same SOCKS tunnel (see UdpGwBridge).

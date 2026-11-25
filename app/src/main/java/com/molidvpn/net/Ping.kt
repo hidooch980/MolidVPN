@@ -15,6 +15,7 @@ import androidx.compose.runtime.mutableStateListOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import java.net.ConnectException
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
 
@@ -23,6 +24,22 @@ import java.net.Socket
  * good proxy for reachability, and a refused connection still gives us RTT.
  */
 object Net {
+    /** TCP handshake to Google's edge; a refused/blocked connect still measures RTT. */
+    suspend fun google(timeoutMs: Int = 1600): Int? = withContext(Dispatchers.IO) {
+        val addr = try {
+            InetSocketAddress(InetAddress.getByName("www.google.com"), 443)
+        } catch (_: Exception) {
+            return@withContext null
+        }
+        val t0 = System.nanoTime()
+        try {
+            Socket().use { it.connect(addr, timeoutMs) }
+            elapsed(t0)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     suspend fun ping(ip: String, port: Int = 51820, timeoutMs: Int = 1400): Int? =
         withContext(Dispatchers.IO) {
             val t0 = System.nanoTime()
@@ -38,6 +55,30 @@ object Net {
 
     private fun elapsed(t0: Long): Int =
         ((System.nanoTime() - t0) / 1_000_000L).toInt().coerceIn(1, 4000)
+}
+
+/**
+ * One honest number for the home screen: the measured TCP round-trip to Google.
+ * No seed values, no "average of nothing" — a failed probe is simply [ms] == null.
+ */
+object GooglePing {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    var ms by mutableStateOf<Int?>(null)
+        private set
+    var checkedAt by mutableStateOf(0L)
+        private set
+    private var running = false
+
+    fun measure(times: Int = 3) {
+        if (running) return
+        running = true
+        scope.launch {
+            val samples = (1..times).mapNotNull { Net.google() }
+            ms = samples.minOrNull()
+            checkedAt = System.currentTimeMillis()
+            running = false
+        }
+    }
 }
 
 /** Live ping table plus the smart selector that keeps the best path on top. */
@@ -58,10 +99,17 @@ object Smart {
         if (testing.contains(server.id)) return
         testing.add(server.id)
         scope.launch {
-            val ms = smooth(server, Net.ping(server.ip) ?: server.seedPing)
+            val raw = Net.ping(server.ip)
             testing.remove(server.id)
             lastTestAt = System.currentTimeMillis()
-            if (onResult != null) withContext(Dispatchers.Main) { onResult(ms) }
+            if (raw == null) {
+                // Unreachable is a result too: drop the old number instead of showing it forever.
+                pings.remove(server.id)
+                if (onResult != null) withContext(Dispatchers.Main) { onResult(-1) }
+            } else {
+                val ms = smooth(server, raw)
+                if (onResult != null) withContext(Dispatchers.Main) { onResult(ms) }
+            }
         }
     }
 
@@ -71,25 +119,16 @@ object Smart {
             coroutineScope {
                 servers.map { s ->
                     async {
-                        smooth(s, Net.ping(s.ip) ?: s.seedPing)
+                        val raw = Net.ping(s.ip)
+                        if (raw == null) pings.remove(s.id) else smooth(s, raw)
                     }
                 }.awaitAll()
             }
             testing.clear()
             lastTestAt = System.currentTimeMillis()
-            val best = servers.minByOrNull { pings[it.id] ?: it.seedPing }
-            // Hysteresis: keep the current path unless the new one is clearly faster,
-            // so the tunnel does not hop between equals every minute.
-            val current = bestId?.let { id -> servers.firstOrNull { it.id == id } }
-            val chosen = if (current != null && best != null && current.id != best.id) {
-                val c = pings[current.id] ?: current.seedPing
-                val b = pings[best.id] ?: best.seedPing
-                if (b < c * 0.85f) best else current
-            } else {
-                best
-            }
-            bestId = chosen?.id
-            if (onDone != null) withContext(Dispatchers.Main) { onDone(chosen) }
+            val best = servers.filter { pings[it.id] != null }.minByOrNull { pings[it.id] ?: Int.MAX_VALUE }
+            bestId = best?.id
+            if (onDone != null) withContext(Dispatchers.Main) { onDone(best) }
         }
     }
 

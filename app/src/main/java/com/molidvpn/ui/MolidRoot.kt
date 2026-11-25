@@ -49,14 +49,15 @@ import com.molidvpn.data.Server
 import com.molidvpn.core.wg.TunnelProfiles
 import com.molidvpn.data.Servers
 import com.molidvpn.data.SettingsStore
+import com.molidvpn.net.ExitIp
 import com.molidvpn.net.MyIp
 import com.molidvpn.net.Smart
 import com.molidvpn.ui.components.ToastCard
 import com.molidvpn.ui.screens.ConnectScreen
 import com.molidvpn.ui.screens.HelpDialog
-import com.molidvpn.ui.screens.RoutesScreen
 import com.molidvpn.ui.screens.SettingsScreen
 import com.molidvpn.ui.theme.M
+import com.molidvpn.core.VpnState
 import com.molidvpn.ui.theme.MolidFont
 import kotlinx.coroutines.delay
 
@@ -94,8 +95,19 @@ fun MolidRoot(
 
     // "Your IP": refreshed on launch, on every connect state change and every five minutes.
     LaunchedEffect(connected) {
-        if (connected) delay(2500)
+        if (!connected) {
+            ExitIp.clear()
+            MyIp.refresh()
+            return@LaunchedEffect
+        }
+        // The tunnel edge address is read through the engine's own SOCKS port,
+        // which is the only path that proves where traffic really leaves.
         MyIp.refresh()
+        while (true) {
+            val port = VpnState.socksPort
+            if (port > 0) ExitIp.refresh(port)
+            delay(10_000)
+        }
     }
     LaunchedEffect(Unit) {
         while (true) {
@@ -157,7 +169,11 @@ fun MolidRoot(
                         tx = tx,
                         servers = Servers.all,
                         mode = settings.mode,
-                        myIp = MyIp.value,
+                        country = settings.freeCountry,
+                        onCountry = { code ->
+                            settings.updateFreeCountry(code)
+                        },
+                        myIp = if (connected) ExitIp.value ?: MyIp.value else MyIp.value,
                         autoExit = settings.smartSelect,
                         onAutoExit = {
                             settings.updateSmartSelect(true)
@@ -191,7 +207,7 @@ fun MolidRoot(
                                     }
                                 }
                                 "psiphon" -> toastLatest("سایفون: داخل خود برنامه وصل می‌شود")
-                                "tor" -> toastLatest("تور: Orbot را نصب کن و آن‌جا وصل شو")
+                                "tor" -> toastLatest("تور: هستهٔ داخلی است و بدون اپ اضافه وصل می‌شود")
                                 else -> {
                                     settings.updateSmartSelect(true)
                                     settings.updateAutoPing(true)
@@ -209,31 +225,8 @@ fun MolidRoot(
                         },
                         onToast = toastLatest,
                     )
-                    1 -> RoutesScreen(
-                        servers = Servers.all,
-                        selected = selected,
-                        onSelect = { s ->
-                            if (settings.smartSelect) settings.updateSmartSelect(false)
-                            onSelect(s)
-                            toastLatest("سرور فعال: " + s.title)
-                        },
-                        onTest = { s ->
-                            Smart.test(s) { ms ->
-                                toastLatest("پینگ " + s.title + " — " + faNum(ms) + " میلی‌ثانیه")
-                            }
-                        },
-                        onTestAll = {
-                            Smart.testAll(Servers.all) { best ->
-                                toastLatest(
-                                    if (best != null) "سریع‌ترین مسیر: " + best.title
-                                    else "همهٔ مسیرها تست شدند"
-                                )
-                            }
-                        },
-                    )
                     else -> SettingsScreen(
                         settings = settings,
-                        server = selected,
                         onCheckUpdate = onCheckUpdate,
                         onToast = toastLatest,
                         onEditConfig = onEditConfig,
@@ -358,8 +351,7 @@ private fun TabBar(current: Int, onTab: (Int) -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             TabItem("اتصال", MolidIcons.Shield, current == 0) { onTab(0) }
-            TabItem("مسیرها", MolidIcons.Globe, current == 1) { onTab(1) }
-            TabItem("تنظیمات", MolidIcons.Sliders, current == 2) { onTab(2) }
+            TabItem("تنظیمات", MolidIcons.Sliders, current == 1) { onTab(1) }
         }
     }
 }

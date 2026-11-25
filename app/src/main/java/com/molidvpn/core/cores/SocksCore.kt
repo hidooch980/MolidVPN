@@ -121,6 +121,71 @@ class SocksCore(
 
         fun freePort(): Int = ServerSocket(0).use { it.localPort }
 
+        /**
+         * Same SOCKS5 path as [probe], but returns the measured round-trip in
+         * milliseconds so callers can rank configs by real delay.
+         */
+        fun probeMs(port: Int, timeoutMs: Int = 7_000): Int? {
+            val t0 = System.nanoTime()
+            return try {
+                Socket().use { socket ->
+                    socket.soTimeout = timeoutMs
+                    socket.connect(InetSocketAddress(InetAddress.getByName("127.0.0.1"), port), timeoutMs)
+                    val out = socket.getOutputStream()
+                    val inp = socket.getInputStream()
+                    out.write(byteArrayOf(5, 1, 0))
+                    out.flush()
+                    val greet = ByteArray(2)
+                    if (!readAll(inp, greet) || greet[1] != 0.toByte()) return null
+                    val host = "connectivitycheck.gstatic.com".toByteArray()
+                    out.write(byteArrayOf(5, 1, 0, 3, host.size.toByte()) + host + byteArrayOf(0, 80.toByte()))
+                    out.flush()
+                    val head = ByteArray(10)
+                    if (!readAll(inp, head) || head[1] != 0.toByte()) return null
+                    out.write("GET /generate_204 HTTP/1.1\r\nHost: connectivitycheck.gstatic.com\r\nConnection: close\r\n\r\n".toByteArray())
+                    out.flush()
+                    val status = inp.bufferedReader().readLine() ?: return null
+                    if (!status.contains(" 204")) return null
+                    ((System.nanoTime() - t0) / 1_000_000L).toInt().coerceIn(1, timeoutMs)
+                }
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+
+        /**
+         * Reads the exit address through the tunnel itself (SOCKS5 + HTTP),
+         * which is the only truthful source: the VPN app's own sockets bypass
+         * its own tun, so a direct lookup would report the local line.
+         */
+        fun ipViaSocks(port: Int, timeoutMs: Int = 7_000): String? {
+            return try {
+                Socket().use { socket ->
+                    socket.soTimeout = timeoutMs
+                    socket.connect(InetSocketAddress(InetAddress.getByName("127.0.0.1"), port), timeoutMs)
+                    val out = socket.getOutputStream()
+                    val inp = socket.getInputStream()
+                    out.write(byteArrayOf(5, 1, 0))
+                    out.flush()
+                    val greet = ByteArray(2)
+                    if (!readAll(inp, greet) || greet[1] != 0.toByte()) return null
+                    val host = "api.ipify.org".toByteArray()
+                    out.write(byteArrayOf(5, 1, 0, 3, host.size.toByte(), *host, 0, 80.toByte()))
+                    out.flush()
+                    val head = ByteArray(10)
+                    if (!readAll(inp, head) || head[1] != 0.toByte()) return null
+                    out.write("GET / HTTP/1.1\r\nHost: api.ipify.org\r\nUser-Agent: MolidVPN\r\nConnection: close\r\n\r\n".toByteArray())
+                    out.flush()
+                    val body = inp.bufferedReader().use { it.readText() }
+                    val tail = body.substringAfter("\r\n\r\n", body)
+                    val ip = tail.trim().split("\n").lastOrNull()?.trim().orEmpty()
+                    if (ip.matches(Regex("^[0-9a-fA-F:.]{7,45}$"))) ip else null
+                }
+            } catch (_: Exception) {
+                null
+            }
+        }
         /** SOCKS5 CONNECT to a public generate_204 endpoint; true when the path carries traffic. */
         fun probe(port: Int, timeoutMs: Int = 8_000): Boolean {
             return try {
