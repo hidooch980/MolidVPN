@@ -37,11 +37,19 @@ object UpdateState {
     /** Last download failure, shown in the banner until the next attempt. */
     var error by mutableStateOf<String?>(null)
         private set
+    /** The verified package sits in the cache and waits for a tap on "نصب". */
+    var ready by mutableStateOf(false)
+        private set
 
     internal fun found(versionName: String, versionCode: Int) {
         version = versionName
         code = versionCode
         error = null
+        ready = false
+    }
+
+    internal fun ready(v: Boolean) {
+        ready = v
     }
 
     internal fun checking(v: Boolean) {
@@ -59,6 +67,7 @@ object UpdateState {
 
     internal fun fail(message: String) {
         progress = -1
+        ready = false
         error = message
     }
 
@@ -67,6 +76,7 @@ object UpdateState {
         code = 0
         progress = -1
         error = null
+        ready = false
     }
 }
 
@@ -168,12 +178,38 @@ object Updater {
                 post { allowInstall(ctx) }
                 return@Thread
             }
-            post { onResult("نسخهٔ " + version + " آمادهٔ نصب است") }
-            // The package is verified: hand it to the installer and let the
-            // banner offer "نصب" again instead of staying at 100% forever.
+            // Nothing opens by itself: the package waits for the user's tap.
             UpdateState.progress(-1)
-            post { install(ctx, apk) }
+            UpdateState.ready(true)
+            post { onResult("نسخهٔ " + version + " آمادهٔ نصب است؛ دکمهٔ نصب را بزن") }
         }.start()
+    }
+
+    /** Opens the system installer for the package that was already verified. */
+    fun openInstaller(ctx: Context, onResult: (String) -> Unit) {
+        val apk = File(ctx.cacheDir, "molid-update.apk")
+        val manifest = pending
+        val expected = manifest?.optString("sha256", "")?.lowercase().orEmpty()
+        if (!apk.exists() || apk.length() < 1_000_000L ||
+            (expected.isNotEmpty() && sha256(apk) != expected)
+        ) {
+            UpdateState.fail("بسته را دوباره بگیر")
+            post { onResult("بسته در دست نیست؛ دوباره به‌روزرسانی را بزن") }
+            return
+        }
+        if (signer(ctx, null) == null || signer(ctx, null) != signer(ctx, apk)) {
+            apk.delete()
+            UpdateState.fail("امضای بسته با این نسخه نمی‌خواند")
+            post { onResult("امضای بستهٔ جدید با این نسخه نمی‌خواند") }
+            return
+        }
+        if (!canInstall(ctx)) {
+            UpdateState.fail("اجازهٔ نصب بسته را روشن کن")
+            post { onResult("اجازهٔ نصب بسته را روشن کن و دوباره بزن") }
+            post { allowInstall(ctx) }
+            return
+        }
+        install(ctx, apk)
     }
 
     /** Manual check from settings: says what is available and leaves the rest to the banner. */

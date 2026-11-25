@@ -148,10 +148,14 @@ fun ConnectScreen(
             UpdateBanner(
                 version = updateVersion,
                 progress = UpdateState.progress,
+                ready = UpdateState.ready,
                 error = UpdateState.error,
                 onUpdate = {
-                    UpdateState.retry()
-                    Updater.install(context, onToast)
+                    if (UpdateState.ready) Updater.openInstaller(context, onToast)
+                    else {
+                        UpdateState.retry()
+                        Updater.install(context, onToast)
+                    }
                 },
             )
             Spacer(Modifier.height(10.dp))
@@ -235,7 +239,13 @@ private fun OrbSection(
 }
 
 @Composable
-private fun UpdateBanner(version: String, progress: Int, error: String?, onUpdate: () -> Unit) {
+private fun UpdateBanner(
+    version: String,
+    progress: Int,
+    ready: Boolean,
+    error: String?,
+    onUpdate: () -> Unit,
+) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -247,7 +257,8 @@ private fun UpdateBanner(version: String, progress: Int, error: String?, onUpdat
     ) {
         Column(Modifier.weight(1f)) {
             Text(
-                "نسخهٔ " + faNum(version) + " آماده است",
+                if (ready) "نسخهٔ " + faNum(version) + " تأیید شد"
+                else "نسخهٔ " + faNum(version) + " آماده است",
                 fontSize = 11.5.sp,
                 fontFamily = MolidFont,
                 fontWeight = FontWeight.Bold,
@@ -257,6 +268,7 @@ private fun UpdateBanner(version: String, progress: Int, error: String?, onUpdat
             Text(
                 when {
                     progress >= 0 -> "در حال دانلود بسته…"
+                    ready -> "تأیید شد · نصب فقط با لمس خودت"
                     error != null -> error
                     else -> "قبل از نصب، امضا و SHA-256 بررسی می‌شود"
                 },
@@ -266,7 +278,12 @@ private fun UpdateBanner(version: String, progress: Int, error: String?, onUpdat
             )
         }
         Text(
-            if (progress >= 0) faNum(progress) + "٪" else if (error != null) "تلاش دوباره" else "به‌روزرسانی",
+            when {
+                progress >= 0 -> faNum(progress) + "٪"
+                ready -> "نصب"
+                error != null -> "تلاش دوباره"
+                else -> "به‌روزرسانی"
+            },
             fontSize = 9.5.sp,
             fontFamily = MolidFont,
             fontWeight = FontWeight.Bold,

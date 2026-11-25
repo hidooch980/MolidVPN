@@ -139,10 +139,10 @@ class MainActivity : ComponentActivity() {
                 // Ask every mirror at launch and then every few hours; the banner
                 // carries the news, the toast only repeats it once.
                 if (!settings.smartUpdate) return@LaunchedEffect
+                // Silent: the banner is the announcement. Nothing downloads and
+                // nothing installs until the user taps.
                 while (true) {
-                    Updater.probe(ctx) { msg ->
-                        if (msg.contains("آماده است")) showToast(msg)
-                    }
+                    Updater.probe(ctx)
                     delay(3 * 60 * 60 * 1000L)
                 }
             }
