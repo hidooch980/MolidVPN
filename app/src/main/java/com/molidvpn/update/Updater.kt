@@ -81,8 +81,8 @@ object UpdateState {
  */
 object Updater {
     private val MANIFESTS = listOf(
-        "https://cdn.jsdelivr.net/gh/hidooch980/MolidVPN@main/release/update.json",
         "https://raw.githubusercontent.com/hidooch980/MolidVPN/main/release/update.json",
+        "https://cdn.jsdelivr.net/gh/hidooch980/MolidVPN@main/release/update.json",
         "https://raw.githack.com/hidooch980/MolidVPN/main/release/update.json",
         "https://github.com/hidooch980/MolidVPN/raw/main/release/update.json",
         "https://cdn.statically.io/gh/hidooch980/MolidVPN/main/release/update.json",
@@ -180,12 +180,12 @@ object Updater {
      * the highest versionCode wins, so one stale CDN cannot hide a release.
      */
     private fun newestManifest(): JSONObject {
-        val results = java.util.Collections.synchronizedList(ArrayList<JSONObject>())
+        val results = java.util.Collections.synchronizedList(ArrayList<Pair<String, JSONObject>>())
         val bust = "?t=" + System.currentTimeMillis()
         val threads = MANIFESTS.map { link ->
             Thread {
                 try {
-                    results.add(JSONObject(http(link + bust)))
+                    results.add(link to JSONObject(http(link + bust)))
                 } catch (_: Exception) {
                     // another mirror may answer
                 }
@@ -197,7 +197,11 @@ object Updater {
             if (left <= 0) break
             t.join(left)
         }
-        return results.maxByOrNull { it.optInt("versionCode", 0) }
+        // raw.githubusercontent has the shortest cache, so it is the truth when
+        // it answers; a CDN only decides when the source itself is unreachable.
+        val authoritative = results.filter { (link, _) -> link.contains("raw.githubusercontent.com") || link.contains("github.com/hidooch980") }
+        val pool = authoritative.ifEmpty { results }
+        return pool.maxByOrNull { (_, json) -> json.optInt("versionCode", 0) }?.second
             ?: throw IllegalStateException("no manifest")
     }
 
