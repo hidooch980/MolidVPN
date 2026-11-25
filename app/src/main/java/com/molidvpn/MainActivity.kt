@@ -136,9 +136,14 @@ class MainActivity : ComponentActivity() {
                 }
             }
             LaunchedEffect(Unit) {
-                // Quiet on launch: only speak up when there is really something to install.
-                if (settings.smartUpdate) Updater.check(ctx) { msg ->
-                    if (!msg.contains("تازه")) showToast(msg)
+                // Ask every mirror at launch and then every few hours; the banner
+                // carries the news, the toast only repeats it once.
+                if (!settings.smartUpdate) return@LaunchedEffect
+                while (true) {
+                    Updater.probe(ctx) { msg ->
+                        if (msg.contains("آماده است")) showToast(msg)
+                    }
+                    delay(3 * 60 * 60 * 1000L)
                 }
             }
 

@@ -78,6 +78,8 @@ import com.molidvpn.ui.fmtTimer
 import com.molidvpn.ui.pingShort
 import com.molidvpn.ui.theme.M
 import com.molidvpn.ui.theme.MolidFont
+import com.molidvpn.update.UpdateState
+import com.molidvpn.update.Updater
 import kotlinx.coroutines.delay
 
 @Composable
@@ -140,6 +142,20 @@ fun ConnectScreen(
             .verticalScroll(scroll)
             .padding(horizontal = 16.dp),
     ) {
+        val updateVersion = UpdateState.version
+        if (updateVersion != null) {
+            Spacer(Modifier.height(6.dp))
+            UpdateBanner(
+                version = updateVersion,
+                progress = UpdateState.progress,
+                error = UpdateState.error,
+                onUpdate = {
+                    UpdateState.retry()
+                    Updater.install(context, onToast)
+                },
+            )
+            Spacer(Modifier.height(10.dp))
+        }
         sections.forEach { section ->
             // Mode and exit now share one compact row, so this section is merged away.
             if (section.id == "exits_card" || section.id == "modes") return@forEach
@@ -214,6 +230,52 @@ private fun OrbSection(
             timer = clock,
             onToggle = onToggle,
             modifier = Modifier.fillMaxWidth(scale * 0.80f).aspectRatio(1f),
+        )
+    }
+}
+
+@Composable
+private fun UpdateBanner(version: String, progress: Int, error: String?, onUpdate: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(M.Mint.copy(alpha = 0.10f))
+            .border(1.dp, M.Mint.copy(alpha = 0.32f), RoundedCornerShape(16.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                "نسخهٔ " + faNum(version) + " آماده است",
+                fontSize = 11.5.sp,
+                fontFamily = MolidFont,
+                fontWeight = FontWeight.Bold,
+                color = M.Text,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                when {
+                    progress >= 0 -> "در حال دانلود بسته…"
+                    error != null -> error
+                    else -> "قبل از نصب، امضا و SHA-256 بررسی می‌شود"
+                },
+                fontSize = 8.5.sp,
+                fontFamily = MolidFont,
+                color = if (error != null && progress < 0) M.Rose else M.TextDim.copy(alpha = 0.85f),
+            )
+        }
+        Text(
+            if (progress >= 0) faNum(progress) + "٪" else if (error != null) "تلاش دوباره" else "به‌روزرسانی",
+            fontSize = 9.5.sp,
+            fontFamily = MolidFont,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF06110C),
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(M.Mint)
+                .clickable(enabled = progress < 0) { onUpdate() }
+                .padding(horizontal = 11.dp, vertical = 6.dp),
         )
     }
 }
