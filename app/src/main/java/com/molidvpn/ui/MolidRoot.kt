@@ -30,6 +30,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -47,9 +48,11 @@ import androidx.compose.ui.unit.sp
 import com.molidvpn.data.Server
 import com.molidvpn.data.Servers
 import com.molidvpn.data.SettingsStore
+import com.molidvpn.net.MyIp
 import com.molidvpn.net.Smart
 import com.molidvpn.ui.components.ToastCard
 import com.molidvpn.ui.screens.ConnectScreen
+import com.molidvpn.ui.screens.HelpDialog
 import com.molidvpn.ui.screens.RoutesScreen
 import com.molidvpn.ui.screens.SettingsScreen
 import com.molidvpn.ui.theme.M
@@ -61,7 +64,9 @@ fun MolidRoot(
     settings: SettingsStore,
     connected: Boolean,
     connecting: Boolean,
+    failed: Boolean,
     engineDetail: String,
+    engine: String,
     handshakeAge: Int,
     startedAt: Long,
     selected: Server,
@@ -82,8 +87,21 @@ fun MolidRoot(
     modifier: Modifier = Modifier,
 ) {
     var tab by remember { mutableIntStateOf(0) }
+    var help by remember { mutableStateOf(false) }
     val selectLatest by rememberUpdatedState(onSelect)
     val toastLatest by rememberUpdatedState(onToast)
+
+    // "Your IP": refreshed on launch, on every connect state change and every five minutes.
+    LaunchedEffect(connected) {
+        if (connected) delay(2500)
+        MyIp.refresh()
+    }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(300_000)
+            MyIp.refresh()
+        }
+    }
 
     // The engine keeps the table warm and moves the tunnel to the best path.
     LaunchedEffect(settings.autoPing) {
@@ -117,13 +135,18 @@ fun MolidRoot(
         )
 
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            TopBar()
+            TopBar(
+                onHelp = { help = true },
+                onAccount = { tab = 1 },
+            )
             Box(Modifier.weight(1f)) {
                 when (tab) {
                     0 -> ConnectScreen(
                         connected = connected,
                         connecting = connecting,
+                        failed = failed,
                         engineDetail = engineDetail,
+                        engine = engine,
                         handshakeAge = handshakeAge,
                         startedAt = startedAt,
                         server = selected,
@@ -132,6 +155,17 @@ fun MolidRoot(
                         tx = tx,
                         servers = Servers.all,
                         mode = settings.mode,
+                        myIp = MyIp.value,
+                        autoExit = settings.smartSelect,
+                        onAutoExit = {
+                            settings.updateSmartSelect(true)
+                            settings.updateAutoPing(true)
+                            if (!connected) {
+                                Smart.testAll(Servers.all) { best ->
+                                    if (best != null) selectLatest(best)
+                                }
+                            }
+                        },
                         onMode = { m ->
                             settings.updateMode(m)
                             when (m) {
@@ -149,7 +183,7 @@ fun MolidRoot(
                                         onWarp()
                                     }
                                 }
-                                "psiphon" -> toastLatest("سایفون: اپ جداگانه را نصب کن و آن‌جا وصل شو")
+                                "psiphon" -> toastLatest("سایفون: داخل خود برنامه وصل می‌شود")
                                 "tor" -> toastLatest("تور: Orbot را نصب کن و آن‌جا وصل شو")
                                 else -> {
                                     settings.updateSmartSelect(true)
@@ -161,13 +195,18 @@ fun MolidRoot(
                         },
                         onOpenLink = onOpenLink,
                         onToggle = onToggle,
-                        onSelect = { s -> onSelect(s) },
+                        // A hand-picked exit stays pinned until "خودکار" is chosen again.
+                        onSelect = { s ->
+                            if (settings.smartSelect) settings.updateSmartSelect(false)
+                            onSelect(s)
+                        },
                         onToast = toastLatest,
                     )
                     1 -> RoutesScreen(
                         servers = Servers.all,
                         selected = selected,
                         onSelect = { s ->
+                            if (settings.smartSelect) settings.updateSmartSelect(false)
                             onSelect(s)
                             toastLatest("سرور فعال: " + s.title)
                         },
@@ -214,10 +253,12 @@ fun MolidRoot(
             ToastCard(toast ?: "")
         }
     }
+
+    if (help) HelpDialog(onDismiss = { help = false })
 }
 
 @Composable
-private fun TopBar() {
+private fun TopBar(onHelp: () -> Unit, onAccount: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -256,19 +297,28 @@ private fun TopBar() {
             }
         }
         Spacer(Modifier.weight(1f))
-        Icon(
-            MolidIcons.Help,
-            contentDescription = "راهنما",
-            Modifier.size(17.dp),
-            tint = M.Muted,
-        )
-        Spacer(Modifier.width(10.dp))
+        Box(
+            Modifier
+                .size(30.dp)
+                .clip(CircleShape)
+                .clickable(onClick = onHelp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                MolidIcons.Help,
+                contentDescription = "راهنما",
+                Modifier.size(17.dp),
+                tint = M.Muted,
+            )
+        }
+        Spacer(Modifier.width(6.dp))
         Box(
             Modifier
                 .size(28.dp)
                 .clip(CircleShape)
                 .background(Color.White.copy(alpha = 0.08f))
-                .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape),
+                .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape)
+                .clickable(onClick = onAccount),
             contentAlignment = Alignment.Center,
         ) {
             Text(

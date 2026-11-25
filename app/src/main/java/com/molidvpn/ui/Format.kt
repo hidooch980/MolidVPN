@@ -31,7 +31,7 @@ fun fmtClock(totalSeconds: Long): String {
     return pad(h) + ":" + pad(m) + ":" + pad(s)
 }
 
-fun pingText(ms: Int?): String = if (ms == null) "···" else faNum(ms) + " ms"
+fun pingText(ms: Int?): String = if (ms == null) "···" else ltr(faNum(ms) + " ms")
 
 fun pingShort(ms: Int?): String = if (ms == null) "—" else faNum(ms)
 

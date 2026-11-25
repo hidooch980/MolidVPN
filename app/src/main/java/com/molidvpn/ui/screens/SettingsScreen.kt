@@ -217,7 +217,7 @@ fun SettingsScreen(
                     icon = MolidIcons.Badge,
                     iconTint = M.Violet,
                     title = "تست دوره‌ای پینگ",
-                    subtitle = "هر ۶۰ ثانیه، بدون اینکه متوجه شوی",
+                    subtitle = "هر ۱ دقیقه، بدون اینکه متوجه شوی",
                     trailing = {
                         MolidSwitch(settings.autoPing) {
                             settings.updateAutoPing(it)
@@ -278,7 +278,7 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(12.dp))
         Text(
-            "MolidVPN · نسخهٔ " + faNum(BuildConfig.VERSION_NAME) + " (" + faNum(BuildConfig.VERSION_CODE) + ")",
+            "MolidoVPN · نسخهٔ " + faNum(BuildConfig.VERSION_NAME) + " (" + faNum(BuildConfig.VERSION_CODE) + ")",
             fontSize = 8.5.sp,
             fontFamily = MolidFont,
             color = M.Muted2,

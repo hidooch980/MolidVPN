@@ -76,8 +76,9 @@ class MainActivity : ComponentActivity() {
                 ActivityResultContracts.StartActivityForResult()
             ) { result ->
                 if (result.resultCode == RESULT_OK) {
+                    // The home screen already turns amber the instant start()
+                    // runs; a toast saying "connecting" would outlive it.
                     VpnController.start(ctx)
-                    showToast("در حال دست‌دادن با سرور…")
                 } else {
                     showToast("اجازهٔ اتصال داده نشد")
                 }
@@ -94,7 +95,8 @@ class MainActivity : ComponentActivity() {
                         showToast("اتصال قطع شد")
                     }
                     else -> {
-                        if (settings.wgConfig.isBlank()) {
+                        // Psiphon runs from the bundled core and needs no WireGuard config.
+                        if (settings.wgConfig.isBlank() && settings.mode != "psiphon") {
                             showConfig = true
                             showToast("اول پیکربندی تونل را وارد کن")
                         } else {
@@ -102,7 +104,6 @@ class MainActivity : ComponentActivity() {
                             if (permission != null) vpnLauncher.launch(permission)
                             else {
                                 VpnController.start(ctx)
-                                showToast("در حال دست‌دادن با سرور…")
                             }
                         }
                     }
@@ -152,7 +153,9 @@ class MainActivity : ComponentActivity() {
                         settings = settings,
                         connected = VpnState.connected,
                         connecting = VpnState.handshaking,
+                        failed = VpnState.status == VpnStatus.FAILED,
                         engineDetail = VpnState.detail,
+            engine = VpnState.engine,
                         handshakeAge = VpnState.handshakeAge,
                         startedAt = VpnState.startedAt,
                         selected = selected,

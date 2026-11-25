@@ -16,6 +16,19 @@ class WgConfig(
 ) {
     val endpoint: String get() = endpointHost + ":" + endpointPort
 
+    /** Same keys and interface, different server address. */
+    fun at(host: String, port: Int): WgConfig = WgConfig(
+        privateKey = privateKey,
+        peerPublicKey = peerPublicKey,
+        addresses = addresses,
+        dns = dns,
+        mtu = mtu,
+        endpointHost = host,
+        endpointPort = port,
+        allowedIps = allowedIps,
+        keepalive = keepalive,
+    )
+
     fun fingerprint(): String {
         val p = WgCrypto.publicKey(privateKey)
         val b = Base64.getEncoder().encodeToString(p)

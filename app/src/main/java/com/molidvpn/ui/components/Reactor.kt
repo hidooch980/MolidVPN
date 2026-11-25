@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import com.molidvpn.ui.icons.MolidIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,7 +34,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -45,157 +43,173 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.molidvpn.ui.icons.MolidIcons
 import com.molidvpn.ui.theme.M
 import com.molidvpn.ui.theme.MolidFont
 
 /**
- * The orbit: halo, ticks, rotating gradient arc, comet and a live core.
- * The whole core is the connect button — one tap toggles the tunnel.
+ * The four states the connect control can really be in. The ring and the
+ * button are drawn from this one value, so "connecting" can never borrow the
+ * green look of a finished connection.
+ */
+enum class OrbPhase { IDLE, CONNECTING, CONNECTED, FAILED }
+
+/**
+ * Connect control: one flat button inside a progress ring.
+ *
+ * The ring states the phase in colour and motion, the button states it in
+ * words and carries the single action. Everything decorative that did not
+ * carry information (metal rim, tick marks, comet, glint) was removed so the
+ * label stays the loudest thing on the screen.
  */
 @Composable
 fun OrbitReactor(
-    connected: Boolean,
+    phase: OrbPhase,
     timer: String,
-    action: String,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val t = rememberInfiniteTransition(label = "orbit")
+    val connecting = phase == OrbPhase.CONNECTING
+    val accent = when (phase) {
+        OrbPhase.CONNECTED -> M.Mint
+        OrbPhase.CONNECTING -> M.Amber
+        OrbPhase.FAILED -> M.Rose
+        OrbPhase.IDLE -> M.Violet
+    }
+    val accent2 = when (phase) {
+        OrbPhase.CONNECTED -> M.Cyan
+        OrbPhase.CONNECTING -> Color(0xFFFF9A4D)
+        OrbPhase.FAILED -> Color(0xFFFF7D8A)
+        OrbPhase.IDLE -> M.Cyan
+    }
+    val spinMs = when (phase) {
+        OrbPhase.CONNECTED -> 7000
+        OrbPhase.CONNECTING -> 1400
+        else -> 22000
+    }
+
+    val t = rememberInfiniteTransition(label = "ring")
     val spin by t.animateFloat(
         0f, 360f,
-        infiniteRepeatable(tween(9000, easing = LinearEasing)),
+        infiniteRepeatable(tween(spinMs, easing = LinearEasing)),
         label = "spin",
     )
-    val dash by t.animateFloat(
-        0f, -360f,
-        infiniteRepeatable(tween(26000, easing = LinearEasing)),
-        label = "dash",
-    )
-    val glow by t.animateFloat(
-        0.94f, 1.05f,
-        infiniteRepeatable(tween(5500, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "glow",
+    val breath by t.animateFloat(
+        0.86f, 1.06f,
+        infiniteRepeatable(
+            tween(if (connecting) 1100 else 3200, easing = FastOutSlowInEasing),
+            RepeatMode.Reverse,
+        ),
+        label = "breath",
     )
 
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
-        val coreSize = maxWidth * 0.52f
+        // The ring hugs the button: a dial, not a button floating in a big circle.
+        val outer = maxWidth
+        val coreSize = outer * 0.86f - 46.dp
 
+        Box(Modifier.size(outer), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
-            val r = size.minDimension / 2f - 5.dp.toPx()
+            val r = size.minDimension / 2f * 0.86f
             val c = Offset(size.width / 2f, size.height / 2f)
+            val glow = if (phase == OrbPhase.IDLE) 0.5f else breath
 
+            // Soft colour wash behind the ring: the only decoration, and it
+            // encodes phase through hue and brightness.
             drawCircle(
                 brush = Brush.radialGradient(
                     listOf(
-                        M.Cyan.copy(alpha = if (connected) 0.26f else 0.07f),
-                        M.Violet.copy(alpha = if (connected) 0.15f else 0.05f),
+                        accent.copy(alpha = 0.20f * glow),
+                        accent2.copy(alpha = 0.07f * glow),
                         Color.Transparent,
                     ),
                     center = c,
-                    radius = r * 1.18f * (if (connected) glow else 1f),
+                    radius = r * 1.14f,
                 ),
-                radius = r * 1.18f * (if (connected) glow else 1f),
+                radius = r * 1.14f,
                 center = c,
             )
 
-            val ticks = 60
-            for (i in 0 until ticks) {
-                rotate(i * (360f / ticks), c) {
-                    drawLine(
-                        color = Color.White.copy(alpha = if (connected) 0.20f else 0.09f),
-                        start = Offset(c.x, c.y - r + 2.dp.toPx()),
-                        end = Offset(c.x, c.y - r + 8.dp.toPx()),
-                        strokeWidth = 1.dp.toPx(),
-                    )
-                }
-            }
-
-            rotate(dash, c) {
-                drawCircle(
-                    color = Color.White.copy(alpha = if (connected) 0.16f else 0.08f),
-                    radius = r - 15.dp.toPx(),
-                    center = c,
-                    style = Stroke(
-                        1.dp.toPx(),
-                        pathEffect = PathEffect.dashPathEffect(
-                            floatArrayOf(3.dp.toPx(), 9.dp.toPx())
-                        ),
-                    ),
-                )
-            }
-
+            // Track, then the moving arc that shows the phase is alive.
             drawCircle(
-                color = Color.White.copy(alpha = 0.05f),
-                radius = r - 36.dp.toPx(),
+                color = Color.White.copy(alpha = 0.06f),
+                radius = r,
                 center = c,
-                style = Stroke(1.dp.toPx()),
+                style = Stroke(3.dp.toPx()),
             )
-
-            rotate(spin, c) {
+            // The arc is state, not decoration: idle shows only the track,
+            // connecting shows a short arc chasing the ring, and a finished
+            // tunnel shows the full ring.
+            val sweep = when (phase) {
+                OrbPhase.CONNECTING -> 140f
+                OrbPhase.IDLE -> 0f
+                else -> 360f
+            }
+            if (sweep > 0f) rotate(spin, c) {
                 drawArc(
                     brush = Brush.sweepGradient(
-                        listOf(
-                            Color.Transparent,
-                            M.Cyan.copy(alpha = 0.15f),
-                            M.Cyan,
-                            M.Mint,
-                            M.Violet,
-                            Color.Transparent,
-                        ),
+                        listOf(accent.copy(alpha = 0.35f), accent, accent2, accent.copy(alpha = 0.35f)),
                         c,
                     ),
-                    startAngle = -55f,
-                    sweepAngle = 300f,
+                    startAngle = -90f,
+                    sweepAngle = sweep,
                     useCenter = false,
-                    style = Stroke(3.dp.toPx(), cap = StrokeCap.Round),
+                    style = Stroke(4.dp.toPx(), cap = if (sweep < 360f) StrokeCap.Round else StrokeCap.Butt),
                 )
-            }
-
-            if (connected) {
-                rotate(spin + 245f, c) {
-                    drawCircle(
-                        color = Color(0xFFF2FEFF),
-                        radius = 3.5.dp.toPx(),
-                        center = Offset(c.x, c.y - r + 1.5.dp.toPx()),
-                    )
-                    drawCircle(
-                        color = M.Cyan.copy(alpha = 0.35f),
-                        radius = 9.dp.toPx(),
-                        center = Offset(c.x, c.y - r + 1.5.dp.toPx()),
-                    )
-                }
             }
         }
 
         Core(
-            connected = connected,
+            phase = phase,
             timer = timer,
-            action = action,
             onToggle = onToggle,
             size = coreSize,
         )
+        }
     }
 }
 
 @Composable
 private fun Core(
-    connected: Boolean,
+    phase: OrbPhase,
     timer: String,
-    action: String,
     onToggle: () -> Unit,
-    size: androidx.compose.ui.unit.Dp,
+    size: Dp,
 ) {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.972f else 1f, label = "corePress")
+    val scale by animateFloatAsState(if (pressed) 0.965f else 1f, label = "press")
 
-    val top = if (connected) Color(0xFF1B4A55) else Color(0xFF2B2158)
-    val bottom = if (connected) Color(0xFF04101A) else Color(0xFF0A0718)
-    val ring = if (connected) M.Cyan.copy(alpha = 0.42f) else M.Violet.copy(alpha = 0.5f)
+    val accent = when (phase) {
+        OrbPhase.CONNECTED -> M.Mint
+        OrbPhase.CONNECTING -> M.Amber
+        OrbPhase.FAILED -> M.Rose
+        OrbPhase.IDLE -> Color(0xFF9E8CFF)
+    }
+    val faceTop = when (phase) {
+        OrbPhase.CONNECTED -> Color(0xFF0E2B2C)
+        OrbPhase.CONNECTING -> Color(0xFF2B2114)
+        OrbPhase.FAILED -> Color(0xFF2A161E)
+        OrbPhase.IDLE -> Color(0xFF191437)
+    }
+    val label = when (phase) {
+        OrbPhase.CONNECTED -> "قطع اتصال"
+        OrbPhase.CONNECTING -> "لغو اتصال"
+        OrbPhase.FAILED -> "تلاش دوباره"
+        OrbPhase.IDLE -> "اتصال"
+    }
+    val state = when (phase) {
+        OrbPhase.CONNECTED -> "متصل"
+        OrbPhase.CONNECTING -> "در حال اتصال"
+        OrbPhase.FAILED -> "اتصال ناموفق"
+        OrbPhase.IDLE -> "قطع"
+    }
 
     Box(
         Modifier
@@ -205,48 +219,98 @@ private fun Core(
                 scaleY = scale
             }
             .clip(CircleShape)
-            .background(Brush.radialGradient(listOf(top, bottom)))
-            .border(1.dp, ring, CircleShape)
+            .background(Brush.verticalGradient(listOf(faceTop, Color(0xFF07080E))))
+            .border(1.5.dp, accent.copy(alpha = 0.45f), CircleShape)
             .clickable(
                 interactionSource = source,
                 indication = null,
                 role = Role.Button,
-                onClickLabel = action,
+                onClickLabel = label,
                 onClick = onToggle,
             )
             .semantics {
-                contentDescription = action
+                contentDescription = label
+                stateDescription = state
                 role = Role.Button
             },
         contentAlignment = Alignment.Center,
     ) {
+        // One top highlight, so the button reads as a physical key.
+        Canvas(Modifier.fillMaxSize()) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    listOf(Color.White.copy(alpha = 0.10f), Color.Transparent),
+                    center = Offset(this.size.width * 0.32f, this.size.height * 0.18f),
+                    radius = this.size.minDimension * 0.55f,
+                ),
+                radius = this.size.minDimension / 2f,
+                center = center,
+            )
+        }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
-                if (connected) MolidIcons.ShieldCheck else MolidIcons.ShieldAlert,
+                when (phase) {
+                    OrbPhase.CONNECTED -> MolidIcons.ShieldCheck
+                    OrbPhase.CONNECTING -> MolidIcons.Shield
+                    OrbPhase.FAILED -> MolidIcons.ShieldAlert
+                    OrbPhase.IDLE -> MolidIcons.Power
+                },
                 contentDescription = null,
-                Modifier.size(34.dp),
-                tint = if (connected) M.Mint else Color(0xFFBFD2FF),
+                Modifier.size(30.dp),
+                tint = accent,
             )
-            if (connected) {
-                Spacer(Modifier.height(6.dp))
-                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                when (phase) {
+                    OrbPhase.CONNECTED -> "متصل"
+                    OrbPhase.CONNECTING -> "در حال اتصال…"
+                    OrbPhase.FAILED -> "اتصال ناموفق"
+                    OrbPhase.IDLE -> "قطع"
+                },
+                fontSize = if (phase == OrbPhase.CONNECTING) 14.sp else 17.sp,
+                fontFamily = MolidFont,
+                fontWeight = FontWeight.Bold,
+                color = M.Text,
+                maxLines = 1,
+            )
+            Spacer(Modifier.height(3.dp))
+            when (phase) {
+                OrbPhase.CONNECTED -> {
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        Text(
+                            "\u202A" + timer + "\u202C",
+                            fontSize = 11.sp,
+                            fontFamily = MolidFont,
+                            color = M.Mint.copy(alpha = 0.85f),
+                        )
+                    }
+                    Spacer(Modifier.height(3.dp))
                     Text(
-                        "\u202A" + timer + "\u202C",
-                        fontSize = 23.sp,
+                        label,
+                        fontSize = 10.sp,
                         fontFamily = MolidFont,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFFEEF1FA),
+                        color = M.Mint.copy(alpha = 0.75f),
                     )
                 }
+                OrbPhase.CONNECTING -> Text(
+                    "برای لغو لمس کن",
+                    fontSize = 10.sp,
+                    fontFamily = MolidFont,
+                    color = M.Amber.copy(alpha = 0.85f),
+                )
+                OrbPhase.FAILED -> Text(
+                    label,
+                    fontSize = 10.sp,
+                    fontFamily = MolidFont,
+                    color = M.Rose.copy(alpha = 0.85f),
+                )
+                OrbPhase.IDLE -> Text(
+                    "برای اتصال لمس کن",
+                    fontSize = 10.sp,
+                    fontFamily = MolidFont,
+                    color = M.Muted2,
+                )
             }
-            Spacer(Modifier.height(4.dp))
-            Text(
-                action,
-                fontSize = 12.sp,
-                fontFamily = MolidFont,
-                fontWeight = FontWeight.Medium,
-                color = if (connected) M.Mint.copy(alpha = 0.85f) else M.Muted,
-            )
         }
     }
 }

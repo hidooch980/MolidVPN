@@ -259,6 +259,56 @@ fun SelfTestDialog(
         }
     }
 }
+@Composable
+fun HelpDialog(onDismiss: () -> Unit) {
+    DialogShell(
+        title = "راهنمای سریع",
+        subtitle = "سه نشانه برای اینکه بدانی اتصال واقعاً برقرار است.",
+        onDismiss = onDismiss,
+    ) {
+        listOf(
+            "دکمهٔ وسط را لمس کن. تا وقتی حلقه کهربایی و متن «در حال اتصال» است، تونل هنوز کامل نشده.",
+            "حلقهٔ سبز، تیک سپر و شمارش زمان یعنی تونل برقرار است. اگر زمان صفر بماند، اتصال کامل نیست.",
+            "اگر اتصال ناموفق شد، «تلاش دوباره» را بزن یا از «مسیرها» سرور دیگری انتخاب کن.",
+            "پیکربندی، تست موتور و گزینه‌های حریم خصوصی در «تنظیمات» هستند.",
+        ).forEachIndexed { i, line ->
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Box(
+                    Modifier
+                        .size(17.dp)
+                        .clip(CircleShape)
+                        .background(M.Mint.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        (i + 1).toString(),
+                        fontSize = 8.sp,
+                        fontFamily = MolidFont,
+                        fontWeight = FontWeight.Bold,
+                        color = M.Mint,
+                    )
+                }
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    line,
+                    fontSize = 9.5.sp,
+                    fontFamily = MolidFont,
+                    color = M.TextDim,
+                    lineHeight = 16.sp,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ActionButton("فهمیدم", true, onDismiss)
+        }
+    }
+}
+
 /** Paste any configuration link: WireGuard, Shadowsocks, VLESS/VMess/Trojan or a subscription URL. */
 @Composable
 fun LinkImportDialog(onDismiss: () -> Unit, onImport: (String) -> Unit) {

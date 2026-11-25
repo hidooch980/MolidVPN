@@ -76,19 +76,38 @@ object WgCrypto {
         return n
     }
 
-    fun seal(key: ByteArray, counter: Long, plaintext: ByteArray, aad: ByteArray): ByteArray {
+    fun seal(key: ByteArray, counter: Long, plaintext: ByteArray, aad: ByteArray): ByteArray =
+        aeadSeal(key, nonce(counter), plaintext, aad)
+
+    fun open(key: ByteArray, counter: Long, ciphertext: ByteArray, aad: ByteArray): ByteArray? =
+        aeadOpen(key, nonce(counter), ciphertext, aad)
+
+    /** XChaCha20-Poly1305 with a 24 byte nonce, used for cookie replies. */
+    fun xseal(key: ByteArray, nonce24: ByteArray, plaintext: ByteArray, aad: ByteArray): ByteArray =
+        aeadSeal(hchacha20(key, nonce24), xnonce(nonce24), plaintext, aad)
+
+    fun xopen(key: ByteArray, nonce24: ByteArray, ciphertext: ByteArray, aad: ByteArray): ByteArray? =
+        aeadOpen(hchacha20(key, nonce24), xnonce(nonce24), ciphertext, aad)
+
+    private fun xnonce(nonce24: ByteArray): ByteArray {
+        val n = ByteArray(12)
+        System.arraycopy(nonce24, 16, n, 4, 8)
+        return n
+    }
+
+    private fun aeadSeal(key: ByteArray, nonce: ByteArray, plaintext: ByteArray, aad: ByteArray): ByteArray {
         val c = ChaCha20Poly1305()
-        c.init(true, AEADParameters(KeyParameter(key), 128, nonce(counter), aad))
+        c.init(true, AEADParameters(KeyParameter(key), 128, nonce, aad))
         val out = ByteArray(c.getOutputSize(plaintext.size))
         var n = c.processBytes(plaintext, 0, plaintext.size, out, 0)
         n += c.doFinal(out, n)
         return out
     }
 
-    fun open(key: ByteArray, counter: Long, ciphertext: ByteArray, aad: ByteArray): ByteArray? {
+    private fun aeadOpen(key: ByteArray, nonce: ByteArray, ciphertext: ByteArray, aad: ByteArray): ByteArray? {
         return try {
             val c = ChaCha20Poly1305()
-            c.init(false, AEADParameters(KeyParameter(key), 128, nonce(counter), aad))
+            c.init(false, AEADParameters(KeyParameter(key), 128, nonce, aad))
             val out = ByteArray(c.getOutputSize(ciphertext.size))
             var n = c.processBytes(ciphertext, 0, ciphertext.size, out, 0)
             n += c.doFinal(out, n)
@@ -98,6 +117,35 @@ object WgCrypto {
         }
     }
 
+    /** HChaCha20 (draft-irtf-cfrg-xchacha): derives the per-message ChaCha20 key. */
+    fun hchacha20(key: ByteArray, nonce24: ByteArray): ByteArray {
+        val s = IntArray(16)
+        s[0] = 0x61707865; s[1] = 0x3320646e; s[2] = 0x79622d32; s[3] = 0x6b206574
+        for (i in 0 until 8) s[4 + i] = le32(key, 4 * i)
+        for (i in 0 until 4) s[12 + i] = le32(nonce24, 4 * i)
+        repeat(10) {
+            quarter(s, 0, 4, 8, 12); quarter(s, 1, 5, 9, 13)
+            quarter(s, 2, 6, 10, 14); quarter(s, 3, 7, 11, 15)
+            quarter(s, 0, 5, 10, 15); quarter(s, 1, 6, 11, 12)
+            quarter(s, 2, 7, 8, 13); quarter(s, 3, 4, 9, 14)
+        }
+        val out = ByteArray(32)
+        val words = intArrayOf(s[0], s[1], s[2], s[3], s[12], s[13], s[14], s[15])
+        for (i in words.indices) for (j in 0 until 4) {
+            out[4 * i + j] = ((words[i] ushr (8 * j)) and 0xFF).toByte()
+        }
+        return out
+    }
+
+    private fun quarter(s: IntArray, a: Int, b: Int, c: Int, d: Int) {
+        s[a] += s[b]; s[d] = Integer.rotateLeft(s[d] xor s[a], 16)
+        s[c] += s[d]; s[b] = Integer.rotateLeft(s[b] xor s[c], 12)
+        s[a] += s[b]; s[d] = Integer.rotateLeft(s[d] xor s[a], 8)
+        s[c] += s[d]; s[b] = Integer.rotateLeft(s[b] xor s[c], 7)
+    }
+
+    private fun le32(b: ByteArray, off: Int): Int = readU32(b, off)
+
     fun keyPair(): Pair<ByteArray, ByteArray> {
         val priv = ByteArray(32)
         X25519.generatePrivateKey(rng, priv)
@@ -105,10 +153,21 @@ object WgCrypto {
     }
 
     fun publicKey(priv: ByteArray): ByteArray {
+        // RFC 7748 clamps the scalar before the base-point multiplication.
+        // BouncyCastle's scalarMultBase does not, and a WireGuard private key
+        // can arrive unclamped (or only clamped by the peer's tool), so the
+        // advertised public key would not match the key used for DH.
+        val k = priv.copyOf(32)
+        k[0] = (k[0].toInt() and 248).toByte()
+        k[31] = ((k[31].toInt() and 127) or 64).toByte()
         val out = ByteArray(32)
-        X25519.scalarMultBase(priv, 0, out, 0)
+        X25519.scalarMultBase(k, 0, out, 0)
         return out
     }
+
+    /** True when the private key already has the RFC 7748 clamp applied. */
+    fun isClamped(priv: ByteArray): Boolean =
+        (priv[0].toInt() and 7) == 0 && (priv[31].toInt() and 128) == 0 && (priv[31].toInt() and 64) != 0
 
     fun dh(priv: ByteArray, pub: ByteArray): ByteArray? {
         val out = ByteArray(32)

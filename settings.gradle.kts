@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "MolidVPN"
+rootProject.name = "MolidoVPN"
 include(":app")

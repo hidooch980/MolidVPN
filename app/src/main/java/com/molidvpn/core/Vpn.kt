@@ -24,9 +24,25 @@ object VpnState {
     var txBytes by mutableLongStateOf(0L)
     var detail by mutableStateOf("")
 
+    /** Which engine is really carrying traffic: "wireguard", "psiphon", "tor", "xray". */
+    var engine by mutableStateOf("")
+
     val connected: Boolean get() = status == VpnStatus.CONNECTED
     /** True while the tunnel is coming up but the handshake has not completed. */
     val handshaking: Boolean get() = status == VpnStatus.CONNECTING
+
+    /**
+     * Shows "connecting" the moment the user taps, before the service has had a
+     * chance to run. Without this the screen sat on "قطع" for a moment.
+     */
+    fun beginConnecting() {
+        if (status == VpnStatus.CONNECTED) return
+        status = VpnStatus.CONNECTING
+        startedAt = 0L
+        handshakeAge = 0
+        detail = ""
+        engine = ""
+    }
 
     fun reset() {
         status = VpnStatus.IDLE
@@ -45,6 +61,7 @@ object VpnController {
     fun prepare(ctx: Context): Intent? = VpnService.prepare(ctx)
 
     fun start(ctx: Context) {
+        VpnState.beginConnecting()
         ctx.startService(Intent(ctx, TunnelService::class.java).setAction(TunnelService.ACTION_START))
     }
 

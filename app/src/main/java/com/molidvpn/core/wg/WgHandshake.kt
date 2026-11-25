@@ -20,6 +20,7 @@ class WgHandshake(val localPrivate: ByteArray, val peerPublic: ByteArray) {
         private val CONSTRUCTION = "Noise_IKpsk2_25519_ChaChaPoly_BLAKE2s".toByteArray()
         private val IDENTIFIER = "WireGuard v1 zx2c4 Jason@zx2c4.com".toByteArray()
         private val LABEL_MAC1 = "mac1----".toByteArray()
+        private val LABEL_COOKIE = "cookie--".toByteArray()
 
         fun mac1Key(publicKey: ByteArray): ByteArray = WgCrypto.hash(LABEL_MAC1, publicKey)
     }
@@ -71,7 +72,14 @@ class WgHandshake(val localPrivate: ByteArray, val peerPublic: ByteArray) {
         chainKey = WgCrypto.kdf(1, chainKey, input)[0]
     }
 
-    fun createInitiation(): ByteArray {
+    /** MAC1 of the last initiation we sent: the AAD that binds a cookie reply to it. */
+    private var lastMac1 = ByteArray(16)
+
+    /**
+     * Builds the initiation. When the responder has sent a cookie (it is under
+     * load), MAC2 is added so the packet is accepted before the expensive checks.
+     */
+    fun createInitiation(cookie: ByteArray? = null): ByteArray {
         isInitiator = true
         val e = WgCrypto.keyPair()
         ephemeralPrivate = e.first
@@ -102,7 +110,24 @@ class WgHandshake(val localPrivate: ByteArray, val peerPublic: ByteArray) {
 
         val m1 = WgCrypto.mac(mac1Key(peerPublic), msg.copyOfRange(0, 116))
         System.arraycopy(m1, 0, msg, 116, 16)
+        lastMac1 = m1
+        if (cookie != null) {
+            val m2 = WgCrypto.mac(cookie, msg.copyOfRange(0, 132))
+            System.arraycopy(m2, 0, msg, 132, 16)
+        }
         return msg
+    }
+
+    /**
+     * Opens a cookie reply (type 3) for our last initiation. The cookie is
+     * encrypted under a key derived from the responder's public key, with MAC1
+     * as associated data, so only the real responder can produce a usable one.
+     */
+    fun openCookie(msg: ByteArray): ByteArray? {
+        if (msg.size != MSG_COOKIE || msg[0].toInt() != TYPE_COOKIE) return null
+        if (WgCrypto.readU32(msg, 4) != localIndex) return null
+        val key = WgCrypto.hash(LABEL_COOKIE, peerPublic)
+        return WgCrypto.xopen(key, msg.copyOfRange(8, 32), msg.copyOfRange(32, 64), lastMac1)
     }
 
     fun consumeInitiation(msg: ByteArray): Boolean {
@@ -190,6 +215,10 @@ class WgHandshake(val localPrivate: ByteArray, val peerPublic: ByteArray) {
         lastError = ""
         if (msg.size != MSG_RESPONSE || msg[0].toInt() != TYPE_RESPONSE) {
             lastError = "header"
+            return false
+        }
+        if (WgCrypto.readU32(msg, 8) != localIndex) {
+            lastError = "index"
             return false
         }
         remoteIndex = WgCrypto.readU32(msg, 4)

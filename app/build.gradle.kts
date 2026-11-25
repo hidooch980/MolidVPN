@@ -21,8 +21,22 @@ android {
         applicationId = "com.molidvpn"
         minSdk = 26
         targetSdk = 35
-        versionCode = 36
-        versionName = "0.4.5"
+        versionCode = 37
+        versionName = "0.5.0"
+        ndk {
+            // Psiphon's native libgojni.so ships for x86 too; the phones this app
+            // targets are arm/x86_64, so keep the APK to those ABIs.
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
+    }
+
+    ndkVersion = "28.2.13676358"
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     signingConfigs {
@@ -52,6 +66,14 @@ android {
         buildConfig = true
     }
 
+    // Psiphon's libgojni.so is ~23 MB per ABI; storing it compressed keeps the
+    // download near 40 MB instead of 80 MB, which matters on Iranian mobile data.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     // lint artifacts are not in the offline Gradle cache; keep release builds packageable.
     lint {
         checkReleaseBuilds = false
@@ -76,5 +98,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("org.bouncycastle:bcprov-jdk18on:1.77")
+    // Psiphon tunnel core (gomobile AAR), embedded so the app needs no separate Psiphon client.
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar"))))
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

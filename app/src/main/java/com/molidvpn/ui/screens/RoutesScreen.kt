@@ -49,6 +49,7 @@ import com.molidvpn.ui.components.FlagChip
 import com.molidvpn.ui.components.GlassCard
 import com.molidvpn.ui.components.MiniBars
 import com.molidvpn.ui.faNum
+import com.molidvpn.ui.ltr
 import com.molidvpn.ui.pingShort
 import com.molidvpn.ui.quality
 import com.molidvpn.ui.theme.M
@@ -254,7 +255,7 @@ private fun SmartBanner(onTestAll: () -> Unit) {
                     color = M.Text,
                 )
                 Text(
-                    "سریع‌ترین سرور هر ۶۰ ثانیه تست می‌شود",
+                    "سریع‌ترین سرور هر ۱ دقیقه تست می‌شود",
                     fontSize = 8.sp,
                     fontFamily = MolidFont,
                     color = M.Muted2,
@@ -345,7 +346,7 @@ private fun RouteRow(
                     MiniBars(level = quality(ping), active = !testNow, modifier = Modifier.height(16.dp))
                     Spacer(Modifier.width(5.dp))
                     Text(
-                        if (testNow) "···" else pingShort(ping) + (if (ping != null) " ms" else ""),
+                        if (testNow) "···" else ltr(pingShort(ping) + (if (ping != null) " ms" else "")),
                         fontSize = 9.5.sp,
                         fontFamily = MolidFont,
                         fontWeight = FontWeight.Medium,

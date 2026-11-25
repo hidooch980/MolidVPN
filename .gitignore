@@ -6,6 +6,7 @@ local.properties
 *.iml
 .idea/
 .kotlin/
+app/.cxx/
 
 # secrets
 keystore.properties

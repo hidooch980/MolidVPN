@@ -88,6 +88,21 @@ object WgSelfTest {
             )
         )
 
+        // 4b. HChaCha20 known answer (draft-irtf-cfrg-xchacha) and XChaCha20-Poly1305 round trip, used by cookie replies
+        val hkey = ByteArray(32) { it.toByte() }
+        val hnonce = hex("000000090000004a0000000031415927")
+        val hout = toHex(WgCrypto.hchacha20(hkey, hnonce))
+        out.add(
+            Check(
+                "HChaCha20 (XChaCha)",
+                hout == "82413b4227b27bfed30e42508a877d73a0f9e4d58a74a853c12ec41326d3ecdc",
+                hout.take(12) + "…"
+            )
+        )
+        val xct = WgCrypto.xseal(hkey, hnonce + ByteArray(8), "cookie".toByteArray(), ByteArray(16))
+        val xpt = WgCrypto.xopen(hkey, hnonce + ByteArray(8), xct, ByteArray(16))
+        out.add(Check("XChaCha20-Poly1305 رفت‌وبرگشت", xpt != null && String(xpt) == "cookie", ""))
+
         // 5. Complete handshake between two local peers
         val t0 = System.currentTimeMillis()
         val peerA = WgCrypto.keyPair()

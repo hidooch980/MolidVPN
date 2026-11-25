@@ -1,13 +1,11 @@
 package com.molidvpn.ui.screens
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
@@ -31,7 +29,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import com.molidvpn.ui.icons.MolidIcons
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -51,6 +52,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,6 +61,7 @@ import com.molidvpn.net.Smart
 import com.molidvpn.ui.components.FlagChip
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.molidvpn.ui.components.GlassCard
+import com.molidvpn.ui.components.OrbPhase
 import com.molidvpn.ui.components.OrbitReactor
 import com.molidvpn.ui.components.Pill
 import com.molidvpn.ui.faNum
@@ -75,7 +78,9 @@ import kotlinx.coroutines.delay
 fun ConnectScreen(
     connected: Boolean,
     connecting: Boolean,
+    failed: Boolean,
     engineDetail: String,
+    engine: String,
     handshakeAge: Int,
     startedAt: Long,
     server: Server,
@@ -84,7 +89,10 @@ fun ConnectScreen(
     tx: Double,
     servers: List<Server>,
     mode: String,
+    myIp: String?,
+    autoExit: Boolean,
     onMode: (String) -> Unit,
+    onAutoExit: () -> Unit,
     onOpenLink: (String) -> Unit,
     onToggle: () -> Unit,
     onSelect: (Server) -> Unit,
@@ -97,11 +105,18 @@ fun ConnectScreen(
             delay(1000)
         }
     }
-    val live = connected || connecting
+    // One value drives the orbit, the button and the headline, so a
+    // connection that is still handshaking can never look finished.
+    val phase = when {
+        connected -> OrbPhase.CONNECTED
+        connecting -> OrbPhase.CONNECTING
+        failed -> OrbPhase.FAILED
+        else -> OrbPhase.IDLE
+    }
     val secs = if (connected && startedAt > 0) ((now - startedAt) / 1000).coerceAtLeast(0) else 0
     val timer = fmtTimer(secs)
     val clock = fmtClock(secs)
-    var open by remember { mutableIntStateOf(0) }
+    var sheet by remember { mutableIntStateOf(0) }
     val scroll = rememberScrollState()
 
     // Opening a drawer nudges the sheet just enough into view, nothing more.
@@ -116,34 +131,60 @@ fun ConnectScreen(
             .padding(horizontal = 16.dp),
     ) {
         sections.forEach { section ->
+            // Mode and exit now share one compact row, so this section is merged away.
+            if (section.id == "exits_card") return@forEach
             when (section.id) {
                 "modes" -> ModesSection(mode, onMode)
-                "orb" -> OrbSection(live, connected, connecting, clock, onToggle, section.scale)
-                "state" -> StateSection(connected, connecting, server)
-                "status_card" -> ModeCardSection(
+                "orb" -> OrbSection(phase, clock, onToggle, section.scale)
+                "state" -> StateSection(connected, connecting, server, myIp)
+                "status_card" -> PickerRow(
                     mode = mode,
-                    connected = connected,
-                    timer = timer,
-                    open = open == 1,
-                    onToggle = { open = if (open == 1) 0 else 1 },
-                    onMode = onMode,
-                    onOpenLink = onOpenLink,
-                    onToast = onToast,
-                )
-                "exits_card" -> ExitsCardSection(
                     server = server,
-                    servers = servers,
-                    open = open == 2,
-                    onToggle = { open = if (open == 2) 0 else 2 },
-                    onClose = { open = 0 },
-                    onSelect = onSelect,
-                    onToast = onToast,
+                    autoExit = autoExit,
+                    onMode = { sheet = 1 },
+                    onExit = { sheet = 2 },
                 )
                 "metrics" -> MetricsSection(connected, ping, rx, tx)
-                "hint" -> HintSection(connected, connecting, handshakeAge, engineDetail)
+                "hint" -> HintSection(connected, connecting, failed, handshakeAge, engineDetail, engine)
             }
             Spacer(Modifier.height(section.gap.dp))
         }
+    }
+
+    if (sheet == 1) {
+        ModeSheet(
+            current = mode,
+            onPick = { id ->
+                sheet = 0
+                when (id) {
+                    "tor" -> {
+                        onMode(id)
+                        onOpenLink("https://play.google.com/store/apps/details?id=org.torproject.android")
+                    }
+                    "ss" -> onToast("شادوساکس/VLESS در نسخهٔ بعد می‌آید")
+                    else -> onMode(id)
+                }
+            },
+            onDismiss = { sheet = 0 },
+        )
+    }
+    if (sheet == 2) {
+        ExitSheet(
+            server = server,
+            servers = servers,
+            auto = autoExit,
+            onAuto = {
+                sheet = 0
+                onAutoExit()
+                onToast("مکان خروجی: خودکار — سریع‌ترین مسیر")
+            },
+            onSelect = { s ->
+                sheet = 0
+                onSelect(s)
+                onToast("مکان خروجی: " + s.title)
+            },
+            onDismiss = { sheet = 0 },
+        )
     }
 }
 
@@ -177,75 +218,77 @@ private fun ModesSection(mode: String, onMode: (String) -> Unit) {
 
 @Composable
 private fun OrbSection(
-    live: Boolean,
-    connected: Boolean,
-    connecting: Boolean,
+    phase: OrbPhase,
     clock: String,
     onToggle: () -> Unit,
     scale: Float,
 ) {
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         OrbitReactor(
-            connected = live,
+            phase = phase,
             timer = clock,
-            action = when {
-                connected -> "قطع اتصال"
-                connecting -> "لغو"
-                else -> "اتصال"
-            },
             onToggle = onToggle,
-            modifier = Modifier.fillMaxWidth(scale).aspectRatio(1f),
+            modifier = Modifier.fillMaxWidth(scale * 0.80f).aspectRatio(1f),
         )
     }
 }
 
 @Composable
-private fun StateSection(connected: Boolean, connecting: Boolean, server: Server) {
-    AnimatedContent(
-        targetState = when {
-            connected -> 2
-            connecting -> 1
-            else -> 0
-        },
-        transitionSpec = { fadeIn() togetherWith fadeOut() },
-        label = "state",
-    ) { on ->
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                when (on) {
-                    2 -> "متصل"
-                    1 -> "در حال اتصال"
-                    else -> "قطع"
-                },
-                fontSize = if (on == 1) 24.sp else 30.sp,
-                fontFamily = MolidFont,
-                fontWeight = FontWeight.Bold,
-                color = when (on) {
-                    2 -> M.Text
-                    1 -> M.Amber
-                    else -> M.Muted
-                },
-                lineHeight = 38.sp,
+private fun StateSection(
+    connected: Boolean,
+    connecting: Boolean,
+    server: Server,
+    myIp: String?,
+) {
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        if (connecting) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .width(108.dp)
+                    .height(2.dp)
+                    .clip(CircleShape),
+                color = M.Amber,
+                trackColor = Color.White.copy(alpha = 0.08f),
             )
-            Spacer(Modifier.height(2.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                FlagChip(server.flag, 18.dp)
-                Spacer(Modifier.width(7.dp))
+            Spacer(Modifier.height(8.dp))
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            FlagChip(server.flag, 18.dp)
+            Spacer(Modifier.width(7.dp))
+            Text(
+                server.title,
+                fontSize = 13.sp,
+                color = if (connected) M.TextDim else M.Muted,
+                fontFamily = MolidFont,
+                fontWeight = FontWeight.Medium,
+            )
+            Spacer(Modifier.width(5.dp))
+            Text("·", fontSize = 9.sp, color = M.Muted2)
+            Spacer(Modifier.width(5.dp))
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                 Text(
-                    server.title,
-                    fontSize = 13.sp,
-                    color = if (on != 0) M.TextDim else M.Muted,
-                    fontFamily = MolidFont,
-                    fontWeight = FontWeight.Medium,
+                    server.ip,
+                    fontSize = 10.5.sp,
+                    color = M.Muted2,
+                    fontFamily = FontFamily.Monospace,
                 )
-                Spacer(Modifier.width(5.dp))
-                Text("·", fontSize = 9.sp, color = M.Muted2)
+            }
+        }
+        if (myIp != null) {
+            Spacer(Modifier.height(3.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "IP شما",
+                    fontSize = 9.5.sp,
+                    color = M.Muted2,
+                    fontFamily = MolidFont,
+                )
                 Spacer(Modifier.width(5.dp))
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                     Text(
-                        server.ip,
-                        fontSize = 10.5.sp,
-                        color = M.Muted2,
+                        myIp,
+                        fontSize = 10.sp,
+                        color = if (connected) M.Cyan else M.Muted,
                         fontFamily = FontFamily.Monospace,
                     )
                 }
@@ -266,72 +309,186 @@ private data class ConnMode(
 private val CONN_MODES = listOf(
     ConnMode("smart", "اتوماتیک", "سریع‌ترین مسیر، تعویض خودکار", MolidIcons.Sparkle, M.Cyan),
     ConnMode("free", "وارپ (رایگان)", "کلادفلر · بدون لینک و اکانت", MolidIcons.Update, M.Violet),
-    ConnMode("psiphon", "سایفون", "اپ جداگانه · نصب از psiphon.ca", MolidIcons.Power, M.Amber),
+    ConnMode("psiphon", "سایفون", "داخل برنامه · بدون نصب اپ دیگر", MolidIcons.Power, M.Amber),
     ConnMode("tor", "تور (Orbot)", "اپ جداگانه · بدون کانفیگ", MolidIcons.Shield, M.Mint),
     ConnMode("ss", "شادوساکس / VLESS", "موتور دوم · نسخهٔ بعد", MolidIcons.Swap, M.Muted2),
 )
 
 @Composable
-private fun ModeCardSection(
+private fun PickerRow(
     mode: String,
-    connected: Boolean,
-    timer: String,
-    open: Boolean,
-    onToggle: () -> Unit,
-    onMode: (String) -> Unit,
-    onOpenLink: (String) -> Unit,
-    onToast: (String) -> Unit,
+    server: Server,
+    autoExit: Boolean,
+    onMode: () -> Unit,
+    onExit: () -> Unit,
 ) {
     val current = CONN_MODES.firstOrNull { it.id == mode } ?: CONN_MODES.first()
-    DrawerCard(
-        icon = MolidIcons.Swap,
-        tint = if (connected) M.Mint else current.tint,
-        title = "حالت اتصال",
-        summary = current.title + if (connected) "  ·  متصل  ·  " + timer else "  ·  " + current.note,
-        open = open,
-        onToggle = onToggle,
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+        MiniPicker(
+            modifier = Modifier.weight(1f),
+            title = "حالت اتصال",
+            value = current.title,
+            tint = current.tint,
+            icon = MolidIcons.Swap,
+            onClick = onMode,
+        )
+        MiniPicker(
+            modifier = Modifier.weight(1f),
+            title = "مکان خروجی",
+            value = (if (autoExit) "خودکار · " else "") + server.name,
+            tint = M.Cyan,
+            icon = MolidIcons.Globe,
+            onClick = onExit,
+        )
+    }
+}
+
+/** One-line summary chip: label above, current choice below, both inside a single row. */
+@Composable
+private fun MiniPicker(
+    modifier: Modifier,
+    title: String,
+    value: String,
+    tint: Color,
+    icon: ImageVector,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier
+            .clip(RoundedCornerShape(13.dp))
+            .background(Color.White.copy(alpha = 0.045f))
+            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(13.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 9.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.padding(horizontal = 7.dp, vertical = 6.dp)) {
+        Box(
+            Modifier
+                .size(22.dp)
+                .clip(RoundedCornerShape(7.dp))
+                .background(tint.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center,
+        ) { Icon(icon, contentDescription = null, modifier = Modifier.size(12.dp), tint = tint) }
+        Spacer(Modifier.width(7.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 7.5.sp, fontFamily = MolidFont, color = M.Muted2)
+            Text(
+                value,
+                fontSize = 10.5.sp,
+                fontFamily = MolidFont,
+                fontWeight = FontWeight.SemiBold,
+                color = M.Text,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ModeSheet(
+    current: String,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = M.Ink2,
+        contentColor = M.Text,
+        dragHandle = null,
+    ) {
+        Column(Modifier.padding(horizontal = 14.dp).padding(bottom = 18.dp)) {
+            Text(
+                "حالت اتصال",
+                fontSize = 13.sp,
+                fontFamily = MolidFont,
+                fontWeight = FontWeight.SemiBold,
+                color = M.Text,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+            )
             CONN_MODES.forEach { item ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable {
-                            when (item.id) {
-                                "psiphon" -> {
-                                    onMode(item.id)
-                                    onOpenLink("https://psiphon.ca")
-                                }
-                                "tor" -> {
-                                    onMode(item.id)
-                                    onOpenLink("https://play.google.com/store/apps/details?id=org.torproject.android")
-                                }
-                                "ss" -> onToast("شادوساکس/VLESS در نسخهٔ بعد می‌آید")
-                                else -> onMode(item.id)
-                            }
-                            onToggle()
-                        }
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        Modifier
-                            .size(26.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(item.tint.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center,
-                    ) { Icon(item.icon, null, Modifier.size(14.dp), tint = item.tint) }
-                    Spacer(Modifier.width(9.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(item.title, fontSize = 11.sp, color = M.Text, fontFamily = MolidFont, fontWeight = FontWeight.SemiBold)
-                        Text(item.note, fontSize = 8.sp, color = M.Muted2, fontFamily = MolidFont, lineHeight = 11.sp)
-                    }
-                    if (item.id == mode) {
-                        Box(Modifier.size(7.dp).background(item.tint, CircleShape))
-                    }
-                }
+                ModeRow(item, item.id == current) { onPick(item.id) }
             }
+        }
+    }
+}
+
+@Composable
+private fun ModeRow(item: ConnMode, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(26.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(item.tint.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) { Icon(item.icon, contentDescription = null, modifier = Modifier.size(14.dp), tint = item.tint) }
+        Spacer(Modifier.width(9.dp))
+        Column(Modifier.weight(1f)) {
+            Text(item.title, fontSize = 11.sp, color = M.Text, fontFamily = MolidFont, fontWeight = FontWeight.SemiBold)
+            Text(item.note, fontSize = 8.sp, color = M.Muted2, fontFamily = MolidFont, lineHeight = 11.sp)
+        }
+        if (selected) Box(Modifier.size(7.dp).background(item.tint, CircleShape))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ExitSheet(
+    server: Server,
+    servers: List<Server>,
+    auto: Boolean,
+    onAuto: () -> Unit,
+    onSelect: (Server) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val bestPing = servers.mapNotNull { Smart.pings[it.id] }.minOrNull()
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = M.Ink2,
+        contentColor = M.Text,
+        dragHandle = null,
+    ) {
+        Column(Modifier.padding(horizontal = 14.dp).padding(bottom = 18.dp)) {
+            Text(
+                "مکان خروجی",
+                fontSize = 13.sp,
+                fontFamily = MolidFont,
+                fontWeight = FontWeight.SemiBold,
+                color = M.Text,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+            )
+            AutoExitRow(
+                selected = auto,
+                bestPing = bestPing,
+                testing = Smart.testing.isNotEmpty() && bestPing == null,
+                onClick = onAuto,
+            )
+            servers.forEach { s ->
+                ExitRow(
+                    server = s,
+                    selected = !auto && s.id == server.id,
+                    ping = Smart.pings[s.id],
+                    testing = Smart.testing.contains(s.id),
+                    onClick = { onSelect(s) },
+                )
+            }
+            Text(
+                if (auto) "فهرست هر ۱ دقیقه تست می‌شود و سریع‌ترین مسیر خودکار انتخاب می‌شود"
+                else "مسیر دستی ثابت می‌ماند؛ «خودکار» را بزن تا انتخاب دوباره به برنامه برگردد",
+                fontSize = 7.5.sp,
+                fontFamily = MolidFont,
+                color = M.Muted2,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 5.dp),
+            )
         }
     }
 }
@@ -366,46 +523,79 @@ private fun StatusCardSection(
     }
 }
 
+/** The automatic exit: fastest path, re-chosen every minute. */
 @Composable
-private fun ExitsCardSection(
-    server: Server,
-    servers: List<Server>,
-    open: Boolean,
-    onToggle: () -> Unit,
-    onClose: () -> Unit,
-    onSelect: (Server) -> Unit,
-    onToast: (String) -> Unit,
+private fun AutoExitRow(
+    selected: Boolean,
+    bestPing: Int?,
+    testing: Boolean,
+    onClick: () -> Unit,
 ) {
-    DrawerCard(
-        icon = MolidIcons.Globe,
-        tint = M.Cyan,
-        title = "مکان خروجی",
-        summary = server.flag + "  " + server.title + "  ·  " +
-            if (Smart.pings[server.id] != null) ltr(faNum(Smart.pings[server.id]) + " ms") else "در حال سنجش",
-        open = open,
-        onToggle = onToggle,
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (selected) M.Violet.copy(alpha = 0.09f) else Color.Transparent)
+            .clickable { onClick() }
+            .padding(horizontal = 6.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.padding(horizontal = 7.dp, vertical = 6.dp)) {
-            servers.forEach { s ->
-                ExitRow(
-                    server = s,
-                    selected = s.id == server.id,
-                    ping = Smart.pings[s.id],
-                    testing = Smart.testing.contains(s.id),
-                    onClick = {
-                        onSelect(s)
-                        onClose()
-                        onToast("سرور فعال: " + s.title)
-                    },
-                )
-            }
+        Box(
+            Modifier
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(M.Violet.copy(alpha = if (selected) 0.2f else 0.1f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                MolidIcons.Sparkle,
+                contentDescription = null,
+                tint = if (selected) M.Violet else M.Muted,
+                modifier = Modifier.size(14.dp),
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.weight(1f)) {
             Text(
-                "فهرست خودکار هر ۶۰ ثانیه تست می‌شود؛ انتخاب هم خودکار است",
-                fontSize = 7.5.sp,
+                "خودکار",
+                fontSize = 12.sp,
+                fontFamily = MolidFont,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (selected) M.Text else M.TextDim,
+            )
+            Text(
+                "سریع‌ترین مسیر · تعویض خودکار",
+                fontSize = 9.5.sp,
                 fontFamily = MolidFont,
                 color = M.Muted2,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 5.dp),
             )
+        }
+        Text(
+            when {
+                testing -> "···"
+                bestPing != null -> ltr(faNum(bestPing) + " ms")
+                else -> "—"
+            },
+            fontSize = 11.sp,
+            fontFamily = MolidFont,
+            color = when {
+                testing -> M.Muted
+                bestPing == null -> M.Muted2
+                bestPing < 100 -> M.Mint
+                bestPing < 180 -> M.Cyan
+                bestPing < 300 -> M.Amber
+                else -> M.Rose
+            },
+        )
+        Spacer(Modifier.width(8.dp))
+        Box(
+            Modifier
+                .size(15.dp)
+                .clip(CircleShape)
+                .border(1.dp, if (selected) M.Violet else Color.White.copy(alpha = 0.16f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) Box(Modifier.size(7.dp).background(M.Violet, CircleShape))
         }
     }
 }
@@ -438,16 +628,36 @@ private fun MetricsSection(connected: Boolean, ping: Int?, rx: Double, tx: Doubl
 }
 
 @Composable
-private fun HintSection(connected: Boolean, connecting: Boolean, handshakeAge: Int, engineDetail: String) {
+private fun HintSection(
+    connected: Boolean,
+    connecting: Boolean,
+    failed: Boolean,
+    handshakeAge: Int,
+    engineDetail: String,
+    engine: String,
+) {
+    // The hint describes the engine that is really carrying traffic, not the
+    // mode the user picked: Smart mode can fall back from WireGuard to Psiphon.
+    val name = when (engine) {
+        "psiphon" -> "سایفون"
+        "tor" -> "تور"
+        "xray" -> "شادوساکس"
+        else -> "WireGuard"
+    }
     Text(
         when {
-            connected -> "تونل WireGuard فعال · " + faNum(handshakeAge) + " ثانیه از آخرین دست‌دادن"
+            connected && engine == "wireguard" ->
+                "تونل WireGuard فعال · " + faNum(handshakeAge) + " ثانیه از آخرین دست‌دادن"
+            connected && engine.isNotEmpty() -> "تونل $name فعال است · ترافیک از سرورهای $name می‌گذرد"
+            connecting && engineDetail.isNotEmpty() -> engineDetail
+            connecting && engine.isNotEmpty() -> "اتصال به $name در جریان است…"
             connecting -> "دست‌دادن Noise با سرور در جریان است…"
+            failed -> engineDetail.ifEmpty { "اتصال برقرار نشد؛ دوباره تلاش کن" }
             engineDetail.isNotEmpty() -> engineDetail
             else -> "با یک لمس وصل می‌شوی؛ سرور خودکار انتخاب می‌شود"
         },
         fontSize = 11.sp,
-        color = M.Muted2,
+        color = if (failed) M.Rose.copy(alpha = 0.85f) else M.Muted2,
         fontFamily = MolidFont,
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth(),
