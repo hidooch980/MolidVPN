@@ -21,8 +21,8 @@ android {
         applicationId = "com.molidvpn"
         minSdk = 26
         targetSdk = 35
-        versionCode = 41
-        versionName = "0.5.4"
+        versionCode = 42
+        versionName = "0.5.5"
         ndk {
             // Psiphon's native libgojni.so ships for x86 too; the phones this app
             // targets are arm/x86_64, so keep the APK to those ABIs.

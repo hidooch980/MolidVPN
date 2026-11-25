@@ -1,14 +1,14 @@
 {
-  "versionCode": 41,
-  "versionName": "0.5.4",
-  "url": "https://github.com/hidooch980/MolidVPN/releases/download/v0.5.4/MolidVPN-0.5.4.apk",
+  "versionCode": 42,
+  "versionName": "0.5.5",
+  "url": "https://github.com/hidooch980/MolidVPN/releases/download/v0.5.5/MolidVPN-0.5.5.apk",
   "mirrors": [
-    "https://ghproxy.net/https://github.com/hidooch980/MolidVPN/releases/download/v0.5.4/MolidVPN-0.5.4.apk",
-    "https://gh-proxy.com/https://github.com/hidooch980/MolidVPN/releases/download/v0.5.4/MolidVPN-0.5.4.apk",
-    "https://ghfast.top/https://github.com/hidooch980/MolidVPN/releases/download/v0.5.4/MolidVPN-0.5.4.apk",
-    "https://raw.githack.com/hidooch980/MolidVPN/main/dist/MolidVPN-0.5.4.apk",
-    "https://cdn.statically.io/gh/hidooch980/MolidVPN/main/dist/MolidVPN-0.5.4.apk",
-    "https://cdn.jsdelivr.net/gh/hidooch980/MolidVPN@main/dist/MolidVPN-0.5.4.apk"
+    "https://ghproxy.net/https://github.com/hidooch980/MolidVPN/releases/download/v0.5.5/MolidVPN-0.5.5.apk",
+    "https://gh-proxy.com/https://github.com/hidooch980/MolidVPN/releases/download/v0.5.5/MolidVPN-0.5.5.apk",
+    "https://ghfast.top/https://github.com/hidooch980/MolidVPN/releases/download/v0.5.5/MolidVPN-0.5.5.apk",
+    "https://raw.githack.com/hidooch980/MolidVPN/main/dist/MolidVPN-0.5.5.apk",
+    "https://cdn.statically.io/gh/hidooch980/MolidVPN/main/dist/MolidVPN-0.5.5.apk",
+    "https://cdn.jsdelivr.net/gh/hidooch980/MolidVPN@main/dist/MolidVPN-0.5.5.apk"
   ],
-  "sha256": "3d2174f25848843f1ad7aa959ab7412abbe2ab6362ed2eb12918a141e7477737"
+  "sha256": "0931fe9d7a984f7bb53ae0605fdb3444325e42e92260d8cd9014070a469d83af"
 }

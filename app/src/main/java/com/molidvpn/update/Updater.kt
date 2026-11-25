@@ -130,10 +130,13 @@ object Updater {
             val expected = json.optString("sha256", "").lowercase()
             val sources = mirrors(json)
             val apk = File(ctx.cacheDir, "molid-update.apk")
-            var downloaded = false
+            // A previously verified package is reused, so cancelling the system
+            // installer and tapping again does not download 80 MB twice.
+            var downloaded = apk.exists() && apk.length() > 1_000_000L && expected.isNotEmpty() &&
+                sha256(apk) == expected
             // The package counts as downloaded only when its bytes match the
             // manifest hash: a CDN that truncates the file must not pass.
-            for (link in sources) {
+            for (link in if (downloaded) emptyList() else sources) {
                 try {
                     if (apk.exists()) apk.delete()
                     UpdateState.progress(0)
@@ -166,6 +169,9 @@ object Updater {
                 return@Thread
             }
             post { onResult("نسخهٔ " + version + " آمادهٔ نصب است") }
+            // The package is verified: hand it to the installer and let the
+            // banner offer "نصب" again instead of staying at 100% forever.
+            UpdateState.progress(-1)
             post { install(ctx, apk) }
         }.start()
     }
