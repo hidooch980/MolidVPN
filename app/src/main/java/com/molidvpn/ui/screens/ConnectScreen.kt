@@ -56,6 +56,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.molidvpn.core.wg.TunnelProfiles
 import com.molidvpn.data.Server
 import com.molidvpn.net.Smart
 import com.molidvpn.ui.components.FlagChip
@@ -81,6 +82,7 @@ fun ConnectScreen(
     failed: Boolean,
     engineDetail: String,
     engine: String,
+    wgProfile: String,
     handshakeAge: Int,
     startedAt: Long,
     server: Server,
@@ -92,6 +94,7 @@ fun ConnectScreen(
     myIp: String?,
     autoExit: Boolean,
     onMode: (String) -> Unit,
+    onProfile: (String) -> Unit,
     onAutoExit: () -> Unit,
     onOpenLink: (String) -> Unit,
     onToggle: () -> Unit,
@@ -154,16 +157,11 @@ fun ConnectScreen(
     if (sheet == 1) {
         ModeSheet(
             current = mode,
+            profile = wgProfile,
+            onProfile = onProfile,
             onPick = { id ->
                 sheet = 0
-                when (id) {
-                    "tor" -> {
-                        onMode(id)
-                        onOpenLink("https://play.google.com/store/apps/details?id=org.torproject.android")
-                    }
-                    "ss" -> onToast("شادوساکس/VLESS در نسخهٔ بعد می‌آید")
-                    else -> onMode(id)
-                }
+                onMode(id)
             },
             onDismiss = { sheet = 0 },
         )
@@ -309,9 +307,9 @@ private data class ConnMode(
 private val CONN_MODES = listOf(
     ConnMode("smart", "اتوماتیک", "سریع‌ترین مسیر، تعویض خودکار", MolidIcons.Sparkle, M.Cyan),
     ConnMode("free", "وارپ (رایگان)", "کلادفلر · بدون لینک و اکانت", MolidIcons.Update, M.Violet),
-    ConnMode("psiphon", "سایفون", "داخل برنامه · بدون نصب اپ دیگر", MolidIcons.Power, M.Amber),
-    ConnMode("tor", "تور (Orbot)", "اپ جداگانه · بدون کانفیگ", MolidIcons.Shield, M.Mint),
-    ConnMode("ss", "شادوساکس / VLESS", "موتور دوم · نسخهٔ بعد", MolidIcons.Swap, M.Muted2),
+    ConnMode("psiphon", "سایفون", "هستهٔ داخلی · بدون نصب اپ", MolidIcons.Power, M.Amber),
+    ConnMode("tor", "تور", "هستهٔ داخلی · بدون Orbot", MolidIcons.Shield, M.Mint),
+    ConnMode("xray", "Xray (SS/VLESS)", "هستهٔ داخلی · لینک لازم است", MolidIcons.Swap, M.Violet),
 )
 
 @Composable
@@ -389,6 +387,8 @@ private fun MiniPicker(
 @Composable
 private fun ModeSheet(
     current: String,
+    profile: String,
+    onProfile: (String) -> Unit,
     onPick: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -398,7 +398,12 @@ private fun ModeSheet(
         contentColor = M.Text,
         dragHandle = null,
     ) {
-        Column(Modifier.padding(horizontal = 14.dp).padding(bottom = 18.dp)) {
+        Column(
+            Modifier
+                .padding(horizontal = 14.dp)
+                .padding(bottom = 18.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
             Text(
                 "حالت اتصال",
                 fontSize = 13.sp,
@@ -410,6 +415,50 @@ private fun ModeSheet(
             CONN_MODES.forEach { item ->
                 ModeRow(item, item.id == current) { onPick(item.id) }
             }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "پروفایل تونل · WireGuard",
+                fontSize = 13.sp,
+                fontFamily = MolidFont,
+                fontWeight = FontWeight.SemiBold,
+                color = M.Text,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+            )
+            TunnelProfiles.all.forEach { item ->
+                ProfileRow(item, item.id == profile) { onProfile(item.id) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileRow(item: TunnelProfiles.Profile, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) M.Cyan.copy(alpha = 0.10f) else Color.Transparent)
+            .clickable { onClick() }
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (selected) {
+            Box(Modifier.size(7.dp).background(M.Cyan, CircleShape))
+        } else {
+            Spacer(Modifier.size(7.dp))
+        }
+        Spacer(Modifier.width(8.dp))
+        Box(
+            Modifier
+                .size(26.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(M.Cyan.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) { Icon(MolidIcons.Sliders, contentDescription = null, modifier = Modifier.size(14.dp), tint = M.Cyan) }
+        Spacer(Modifier.width(9.dp))
+        Column(Modifier.weight(1f)) {
+            Text(item.title, fontSize = 11.sp, color = M.Text, fontFamily = MolidFont, fontWeight = FontWeight.SemiBold)
+            Text(item.note, fontSize = 8.sp, color = M.Muted2, fontFamily = MolidFont, lineHeight = 11.sp)
         }
     }
 }
@@ -420,10 +469,17 @@ private fun ModeRow(item: ConnMode, selected: Boolean, onClick: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) item.tint.copy(alpha = 0.10f) else Color.Transparent)
             .clickable { onClick() }
             .padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (selected) {
+            Box(Modifier.size(7.dp).background(item.tint, CircleShape))
+        } else {
+            Spacer(Modifier.size(7.dp))
+        }
+        Spacer(Modifier.width(8.dp))
         Box(
             Modifier
                 .size(26.dp)
@@ -436,7 +492,6 @@ private fun ModeRow(item: ConnMode, selected: Boolean, onClick: () -> Unit) {
             Text(item.title, fontSize = 11.sp, color = M.Text, fontFamily = MolidFont, fontWeight = FontWeight.SemiBold)
             Text(item.note, fontSize = 8.sp, color = M.Muted2, fontFamily = MolidFont, lineHeight = 11.sp)
         }
-        if (selected) Box(Modifier.size(7.dp).background(item.tint, CircleShape))
     }
 }
 
@@ -641,7 +696,7 @@ private fun HintSection(
     val name = when (engine) {
         "psiphon" -> "سایفون"
         "tor" -> "تور"
-        "xray" -> "شادوساکس"
+        "xray" -> "Xray"
         else -> "WireGuard"
     }
     Text(

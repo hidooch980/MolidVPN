@@ -21,6 +21,7 @@ class SettingsStore(ctx: Context) {
 
     var mode by mutableStateOf(p.getString("mode", "smart") ?: "smart"); private set
     var wgConfig by mutableStateOf(p.getString("wg_config", "") ?: ""); private set
+    var wgProfile by mutableStateOf(p.getString("wg_profile", "standard") ?: "standard"); private set
 
     fun updateMode(v: String) {
         mode = v
@@ -30,6 +31,11 @@ class SettingsStore(ctx: Context) {
     fun updateWgConfig(v: String) {
         wgConfig = v
         p.edit().putString("wg_config", v).apply()
+    }
+
+    fun updateWgProfile(v: String) {
+        wgProfile = v
+        p.edit().putString("wg_profile", v).apply()
     }
 
     var selectedId: String

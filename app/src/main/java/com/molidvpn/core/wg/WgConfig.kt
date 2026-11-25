@@ -13,6 +13,7 @@ class WgConfig(
     val endpointPort: Int,
     val allowedIps: List<String>,
     val keepalive: Int,
+    val bufferBytes: Int = 0,
 ) {
     val endpoint: String get() = endpointHost + ":" + endpointPort
 
@@ -27,6 +28,21 @@ class WgConfig(
         endpointPort = port,
         allowedIps = allowedIps,
         keepalive = keepalive,
+        bufferBytes = bufferBytes,
+    )
+
+    /** Applies a tuning preset without touching keys or routing. */
+    fun tuned(profile: TunnelProfiles.Profile): WgConfig = WgConfig(
+        privateKey = privateKey,
+        peerPublicKey = peerPublicKey,
+        addresses = addresses,
+        dns = dns,
+        mtu = profile.mtu.coerceIn(1280, 1500),
+        endpointHost = endpointHost,
+        endpointPort = endpointPort,
+        allowedIps = allowedIps,
+        keepalive = profile.keepalive.coerceIn(0, 65535),
+        bufferBytes = profile.bufferBytes,
     )
 
     fun fingerprint(): String {

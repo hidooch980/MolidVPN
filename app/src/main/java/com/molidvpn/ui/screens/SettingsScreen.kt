@@ -145,41 +145,39 @@ fun SettingsScreen(
             }
         }
 
-        SectionLabel("موتورها")
+        SectionLabel("هسته‌ها")
         GlassCard(radius = 16.dp, alpha = 0.055f) {
             Column(Modifier.padding(vertical = 2.dp)) {
                 RowItem(
                     icon = MolidIcons.Globe,
                     iconTint = M.Mint,
                     title = "WireGuard",
-                    subtitle = "موتور فعال · تونل واقعی روی TUN",
-                    trailing = { Pill("فعال", M.Mint) },
-                )
-                Hairline()
-                RowItem(
-                    icon = MolidIcons.Shield,
-                    iconTint = M.Cyan,
-                    title = "Tor (Orbot)",
-                    subtitle = "اپ جداگانه · رایگان، بدون کانفیگ",
-                    trailing = { Pill("نصب", M.Cyan) },
-                    onClick = { onOpenLink("https://play.google.com/store/apps/details?id=org.torproject.android") },
+                    subtitle = "هستهٔ داخلی · تونل واقعی روی TUN",
+                    trailing = { Pill("داخلی", M.Mint) },
                 )
                 Hairline()
                 RowItem(
                     icon = MolidIcons.Power,
                     iconTint = M.Amber,
                     title = "سایفون",
-                    subtitle = "اپ جداگانه · رایگان، بدون کانفیگ",
-                    trailing = { Pill("نصب", M.Amber) },
-                    onClick = { onOpenLink("https://psiphon.ca") },
+                    subtitle = "هستهٔ داخلی · بدون نصب اپ دیگر",
+                    trailing = { Pill("داخلی", M.Amber) },
+                )
+                Hairline()
+                RowItem(
+                    icon = MolidIcons.Shield,
+                    iconTint = M.Cyan,
+                    title = "Tor",
+                    subtitle = "هستهٔ داخلی · بدون Orbot",
+                    trailing = { Pill("داخلی", M.Cyan) },
                 )
                 Hairline()
                 RowItem(
                     icon = MolidIcons.Swap,
-                    iconTint = M.Muted2,
-                    title = "Shadowsocks / VLESS",
-                    subtitle = if (profileCount > 0) faNum(profileCount) + " پروفایل ذخیره شده · موتور دوم در نسخهٔ بعد" else "موتور دوم · در نسخهٔ بعد",
-                    trailing = { Pill(if (profileCount > 0) faNum(profileCount) + " ذخیره" else "به‌زودی", M.Muted2) },
+                    iconTint = M.Violet,
+                    title = "Xray",
+                    subtitle = if (profileCount > 0) "هستهٔ داخلی · " + faNum(profileCount) + " پروفایل SS/VLESS آماده" else "هستهٔ داخلی · از «افزودن از لینک» پروفایل اضافه کن",
+                    trailing = { Pill(if (profileCount > 0) faNum(profileCount) + " آماده" else "خالی", if (profileCount > 0) M.Mint else M.Muted2) },
                 )
             }
         }

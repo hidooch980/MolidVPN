@@ -17,6 +17,7 @@ import com.molidvpn.R
 import com.molidvpn.core.cores.SocksCore
 import com.molidvpn.core.psi.PsiphonEngine
 import com.molidvpn.data.ProfileStore
+import com.molidvpn.core.wg.TunnelProfiles
 import com.molidvpn.core.wg.WgConfig
 import com.molidvpn.core.wg.WgEngine
 import com.molidvpn.data.SettingsStore
@@ -93,7 +94,15 @@ class TunnelService : VpnService() {
         when (SettingsStore(this).mode) {
             "psiphon" -> { startPsiphon(); return }
             "tor" -> { startCore(SocksCore.Kind.TOR, null); return }
-            "xray" -> { startCore(SocksCore.Kind.XRAY, firstXrayLink()); return }
+            "xray" -> {
+                val link = firstXrayLink()
+                if (link == null) {
+                    fail("هیچ لینک SS/VLESS وارد نشده؛ در تنظیمات «افزودن از لینک» را بزن")
+                    return
+                }
+                startCore(SocksCore.Kind.XRAY, link)
+                return
+            }
             "smart" -> {
                 // Smart: WARP first when a config exists, then the in-app cores in order.
                 fallback.clear()
@@ -114,7 +123,7 @@ class TunnelService : VpnService() {
             return
         }
         val cfg = try {
-            WgConfig.parse(raw)
+            WgConfig.parse(raw).tuned(TunnelProfiles.byId(SettingsStore(this).wgProfile))
         } catch (e: Exception) {
             fail(e.message ?: "پیکربندی نامعتبر است")
             return

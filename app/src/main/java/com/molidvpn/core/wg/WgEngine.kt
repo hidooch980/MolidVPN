@@ -95,6 +95,14 @@ class WgEngine(
             protectSocket(s)
             s.connect(InetSocketAddress(cfg.endpointHost, cfg.endpointPort))
             s.soTimeout = 400
+            if (cfg.bufferBytes > 0) {
+                try {
+                    s.receiveBufferSize = cfg.bufferBytes
+                    s.sendBufferSize = cfg.bufferBytes
+                } catch (e: Exception) {
+                    android.util.Log.w("WgEngine", "socket buffer: " + e.message)
+                }
+            }
         } catch (e: Exception) {
             android.util.Log.e("WgEngine", "socket " + cfg.endpointHost + ":" + cfg.endpointPort, e)
             running.set(false)

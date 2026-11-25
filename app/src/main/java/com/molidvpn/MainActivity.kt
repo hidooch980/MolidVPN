@@ -95,8 +95,9 @@ class MainActivity : ComponentActivity() {
                         showToast("اتصال قطع شد")
                     }
                     else -> {
-                        // Psiphon runs from the bundled core and needs no WireGuard config.
-                        if (settings.wgConfig.isBlank() && settings.mode != "psiphon") {
+                        // Only the WireGuard-only modes need a config up front: smart
+                        // falls back to the bundled Psiphon/Tor/Xray cores.
+                        if (settings.wgConfig.isBlank() && (settings.mode == "safe" || settings.mode == "free")) {
                             showConfig = true
                             showToast("اول پیکربندی تونل را وارد کن")
                         } else {
@@ -155,7 +156,7 @@ class MainActivity : ComponentActivity() {
                         connecting = VpnState.handshaking,
                         failed = VpnState.status == VpnStatus.FAILED,
                         engineDetail = VpnState.detail,
-            engine = VpnState.engine,
+                        engine = VpnState.engine,
                         handshakeAge = VpnState.handshakeAge,
                         startedAt = VpnState.startedAt,
                         selected = selected,

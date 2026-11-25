@@ -46,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.molidvpn.data.Server
+import com.molidvpn.core.wg.TunnelProfiles
 import com.molidvpn.data.Servers
 import com.molidvpn.data.SettingsStore
 import com.molidvpn.net.MyIp
@@ -147,6 +148,7 @@ fun MolidRoot(
                         failed = failed,
                         engineDetail = engineDetail,
                         engine = engine,
+                        wgProfile = settings.wgProfile,
                         handshakeAge = handshakeAge,
                         startedAt = startedAt,
                         server = selected,
@@ -165,6 +167,11 @@ fun MolidRoot(
                                     if (best != null) selectLatest(best)
                                 }
                             }
+                        },
+                        onProfile = { id ->
+                            settings.updateWgProfile(id)
+                            val p = TunnelProfiles.byId(id)
+                            toastLatest("پروفایل: " + p.title + " · " + p.note)
                         },
                         onMode = { m ->
                             settings.updateMode(m)
